@@ -4,6 +4,12 @@ version = "1.0.0"
 edition = "2018"
 authors = ["Gustavo Peredo"]
 description = "A command line font package manager. To see more commands, run `font-catcher --help`"
+homepage = "https://github.com/GustavoPeredo/Font-Catcher"
+documentation = "https://github.com/GustavoPeredo/Font-Catcher"
+repository = "https://github.com/GustavoPeredo/Font-Catcher"
+readme = "README.md"
+keywords = ["fonts", "font-management", "download"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 dirs = "4.0.0"
