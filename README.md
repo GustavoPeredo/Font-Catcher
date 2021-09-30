@@ -4,7 +4,7 @@
 
 ## Installation
 
-## Dependencies
+### Dependencies
 
 Font Catcher relies on `curl` to download fonts, make sure to install it before using Font Catcher.
 
