@@ -129,7 +129,7 @@ url = "https://raw.githubusercontent.com/GustavoPeredo/open-font-repository/main
 [[repo]]
 name = "Google Fonts Local"
 url = "https://www.googleapis.com/webfonts/v1/webfonts?key={API_KEY}"
-key = "AIzaSyA2dEVFiF8o1q8JnSGCsq1reUAbzZR6z0I"
+key = "KEY"
 ```
 
 ### Adding to the source code
