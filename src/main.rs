@@ -202,13 +202,53 @@ fn download_fonts(
     };
 }
 
+fn get_local_fonts(fonts_dir: &PathBuf) -> HashMap<String, Vec<PathBuf>> {
+    let files = fs::read_dir(fonts_dir).expect("Folder no available");
+    let mut results: HashMap<String, Vec<PathBuf>> = HashMap::new();
+    for font in files {
+        match font
+            .as_ref()
+            .unwrap()
+            .path()
+            .file_stem()
+            .unwrap()
+            .to_string_lossy()
+            .split("-")
+            .collect::<Vec<&str>>()
+            .first()
+        {
+            Some(font_name) => {
+                let counter = results.entry(font_name.to_string()).or_insert(Vec::new());
+                counter.push(font.as_ref().unwrap().path());
+            }
+            None => {}
+        }
+    }
+    results
+}
+
+fn remove_fonts(fonts_dir: &PathBuf, font_names: Vec<&str>) {
+    let local_fonts = get_local_fonts(fonts_dir);
+
+    for (local_font_name, paths) in local_fonts {
+        for font_name in font_names.iter() {
+            if font_name == &local_font_name {
+                for path in paths.iter() {
+                    println!("Removing file {}", &path.as_os_str().to_str().unwrap());
+                    fs::remove_file(&path).expect("Couldn't remove file");
+                }
+            }
+        }
+    }
+}
+
 fn main() {
-    let share_dir = get_share_dir();
+    let font_catcher_dir = get_share_dir();
 
-    let repos_dir = share_dir.join("repos");
-    let install_dir = share_dir.join("fonts");
+    let repos_dir = font_catcher_dir.join("repos");
+    let install_dir = data_dir().expect("Couldn't solve for dir").join("fonts");
 
-    let repos_file = share_dir.join("repos.conf");
+    let repos_file = font_catcher_dir.join("repos.conf");
 
     let default_repos: repo::Repositories = repo::get_default_repos();
     let local_repos: repo::Repositories = get_local_repos(repos_file);
@@ -224,6 +264,8 @@ fn main() {
         None,
         vec!["Roboto", "Hack", "ABeeZee"],
     );
+
+    remove_fonts(&install_dir, vec!["ABeeZee", "Lmao"]);
     /*
     Create repo file from default repositories
 
