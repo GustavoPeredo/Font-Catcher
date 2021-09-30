@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::env::args;
 use std::fs::{self, create_dir_all};
 use std::path::PathBuf;
 use std::process::Command;
@@ -154,7 +155,7 @@ fn download_fonts(
     repos_dir: &PathBuf,
     download_dir: &PathBuf,
     repo: Option<&str>,
-    fonts: Vec<&str>,
+    fonts: Vec<String>,
 ) {
     match &repo {
         Some(repo) => {
@@ -227,7 +228,7 @@ fn get_local_fonts(fonts_dir: &PathBuf) -> HashMap<String, Vec<PathBuf>> {
     results
 }
 
-fn remove_fonts(fonts_dir: &PathBuf, font_names: Vec<&str>) {
+fn remove_fonts(fonts_dir: &PathBuf, font_names: Vec<String>) {
     let local_fonts = get_local_fonts(fonts_dir);
 
     for (local_font_name, paths) in local_fonts {
@@ -253,10 +254,90 @@ fn main() {
     let default_repos: repo::Repositories = repo::get_default_repos();
     let local_repos: repo::Repositories = get_local_repos(repos_file);
 
+    let args: Vec<String> = args().collect();
+
+    println!("{:?}", args);
+
+    if (args.len() == 1) || args[1] == "--version" || args[1] == "-v" {
+        println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+        println!(
+            "Copyright (C) {}, all rights reserved",
+            env!("CARGO_PKG_AUTHORS")
+        );
+        println!("This is free software. It is licensed for use, modification and");
+        println!("redistribution under the terms of the GNU Affero General Public License,");
+        println!("version 3. <https://www.gnu.org/licenses/agpl-3.0.en.html>");
+        println!("");
+        println!("{}", env!("CARGO_PKG_DESCRIPTION"));
+    } else if args[1] == "update-repos" {
+        update_repos(default_repos, &repos_dir);
+        update_repos(local_repos, &repos_dir);
+    } else if args.len() == 2 {
+        if args[1] == "install"
+            || args[1] == "remove"
+            || args[1] == "search"
+            || args[1] == "download"
+        {
+            println!("`{}` receives at least one argument", args[1]);
+        } else {
+            println!("`{}` command not found", args[1]);
+        }
+    } else {
+        if args[1] == "install" {
+            if args[2] == "--repo" {
+                if args.len() > 4 {
+                    download_fonts(&repos_dir, &install_dir, Some(&args[3]), args[4..].to_vec());
+                } else {
+                    println!("Missing fonts to install");
+                }
+            } else {
+                download_fonts(&repos_dir, &install_dir, None, args[3..].to_vec());
+            }
+        } else if args[1] == "download" {
+            if args[3] == "--repo" {
+                if args.len() > 5 {
+                    download_fonts(
+                        &repos_dir,
+                        &PathBuf::from(&args[2]),
+                        Some(&args[4]),
+                        args[5..].to_vec(),
+                    );
+                } else {
+                    println!("Missing fonts or output directory to download");
+                }
+            } else {
+                download_fonts(
+                    &repos_dir,
+                    &PathBuf::from(&args[2]),
+                    None,
+                    args[3..].to_vec(),
+                );
+            }
+        } else if args[1] == "search" {
+            if args[2] == "--repo" {
+                if args.len() > 4 {
+                    search_fonts(&repos_dir, Some(&args[3]), &args[4]);
+                } else {
+                    println!("Missing string to search");
+                }
+            } else {
+                search_fonts(&repos_dir, None, &args[2]);
+            }
+        } else if args[1] == "remove" {
+            remove_fonts(&install_dir, args[2..].to_vec());
+        }
+    }
+
+    /*
+    Update repo files
+
     update_repos(default_repos, &repos_dir);
     update_repos(local_repos, &repos_dir);
 
+    Search for fonts
     search_fonts(&repos_dir, None, "Agave");
+
+    Download / Install fonts
     download_fonts(&repos_dir, &install_dir, None, vec!["Agave"]);
     download_fonts(
         &repos_dir,
@@ -265,8 +346,9 @@ fn main() {
         vec!["Roboto", "Hack", "ABeeZee"],
     );
 
+    Remove fonts
     remove_fonts(&install_dir, vec!["ABeeZee", "Lmao"]);
-    /*
+
     Create repo file from default repositories
 
     let repos_str = toml::to_string(&repos).unwrap();
