@@ -10,6 +10,7 @@ repository = "https://github.com/GustavoPeredo/Font-Catcher"
 readme = "README.md"
 keywords = ["fonts", "font-management", "download"]
 categories = ["command-line-utilities"]
+license = "AGPL-3.0"
 
 [dependencies]
 dirs = "4.0.0"
