@@ -1,6 +1,6 @@
 [package]
 name = "font-catcher"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2018"
 authors = ["Gustavo Peredo"]
 description = "A command line font package manager. To see more commands, run `font-catcher --help`"
