@@ -1,8 +1,5 @@
 use std::collections::HashMap;
 
-#[cfg(feature = "google_repo")]
-use std::env::var;
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -42,7 +39,10 @@ pub fn get_default_repos() -> Repositories {
             Repository {
                 name: "Google Fonts".to_string(),
                 url: "https://www.googleapis.com/webfonts/v1/webfonts?key={API_KEY}".to_string(),
-                key: Some(var("GOOGLE_FONTS_KEY").unwrap()),
+                key: {
+                    const PASSWORD: &'static str = env!("GOOGLE_FONTS_KEY");
+                    Some(PASSWORD.to_string())
+                },
             },
 
             Repository {
