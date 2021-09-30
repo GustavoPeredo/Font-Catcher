@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+
+#[cfg(feature = "google_repo")]
 use std::env::var;
 
 use serde::{Deserialize, Serialize};
