@@ -4,13 +4,25 @@ use std::fs::{self, create_dir_all};
 use std::path::PathBuf;
 use std::process::Command;
 use std::str;
+use std::time;
 
 use dirs::data_dir;
+
+use font_kit::handle::Handle;
+use font_kit::source::SystemSource;
 
 use serde_json;
 use toml;
 
 mod repo;
+
+#[derive(Debug)]
+struct FontFile {
+    variant: String,
+    path: PathBuf,
+    system: bool,
+    creation_date: time::SystemTime,
+}
 
 fn get_share_dir() -> PathBuf {
     let mut share = match data_dir() {
@@ -21,13 +33,17 @@ fn get_share_dir() -> PathBuf {
         }
     };
     share.push("font-catcher");
-    create_dir_all(&share).expect("Couldn't create direcotires!");
+    create_dir_all(&share).expect("Couldn't create dir!");
     share
 }
 
-fn get_local_repos(repo_file: PathBuf) -> repo::Repositories {
-    let repo_data = fs::read_to_string(&repo_file).expect("Unable to read repositories file");
-    toml::from_str(&repo_data).expect("Failed to read repositories file")
+fn get_local_repos(repo_file: PathBuf) -> Option<repo::Repositories> {
+    if repo_file.exists() {
+        let repo_data = fs::read_to_string(&repo_file).expect("Unable to read repositories file");
+        Some(toml::from_str(&repo_data).expect("Failed to read repositories file"))
+    } else {
+        None
+    }
 }
 
 fn get_repo_json(url: &str) -> String {
@@ -203,7 +219,7 @@ fn download_fonts(
     };
 }
 
-fn get_local_fonts(fonts_dir: &PathBuf) -> HashMap<String, Vec<PathBuf>> {
+fn _get_local_fonts(fonts_dir: &PathBuf) -> HashMap<String, Vec<PathBuf>> {
     let files = fs::read_dir(fonts_dir).expect("Folder no available");
     let mut results: HashMap<String, Vec<PathBuf>> = HashMap::new();
     for font in files {
@@ -228,9 +244,40 @@ fn get_local_fonts(fonts_dir: &PathBuf) -> HashMap<String, Vec<PathBuf>> {
     results
 }
 
-fn remove_fonts(fonts_dir: &PathBuf, font_names: Vec<String>) {
-    let local_fonts = get_local_fonts(fonts_dir);
+fn get_local_fonts() -> HashMap<String, Vec<FontFile>> {
+    /*let files = fs::read_dir(fonts_dir).expect("Folder not available");*/
+    let mut results: HashMap<String, Vec<FontFile>> = HashMap::new();
 
+    let source = SystemSource::new();
+    let fonts = source.all_fonts().unwrap();
+
+    for font in fonts {
+        match font.load() {
+            Ok(font_info) => {
+                if let Handle::Path {
+                    ref path,
+                    font_index,
+                } = font
+                {
+                    let metadata = fs::metadata(&path).expect("Unable to read metadata!");
+                    let counter = results.entry(font_info.family_name()).or_insert(Vec::new());
+                    counter.push(FontFile {
+                        variant: font_info.full_name(),
+                        path: path.clone(),
+                        system: true,
+                        creation_date: metadata.created().expect("Unable to retrive creation time"),
+                    });
+                }
+            }
+            Err(_) => {}
+        }
+    }
+    results
+}
+
+fn remove_fonts(fonts_dir: &PathBuf, font_names: Vec<String>) {
+    let local_fonts = get_local_fonts();
+    /*
     for (local_font_name, paths) in local_fonts {
         for font_name in font_names.iter() {
             if font_name == &local_font_name {
@@ -241,6 +288,7 @@ fn remove_fonts(fonts_dir: &PathBuf, font_names: Vec<String>) {
             }
         }
     }
+    */
 }
 
 fn main() {
@@ -252,13 +300,14 @@ fn main() {
     let repos_file = font_catcher_dir.join("repos.conf");
 
     let default_repos: repo::Repositories = repo::get_default_repos();
-    let local_repos: repo::Repositories = get_local_repos(repos_file);
+    let local_repos: Option<repo::Repositories> = get_local_repos(repos_file);
 
     let args: Vec<String> = args().collect();
+    
+    println!("{:?}", get_local_fonts());
+    /*
 
-    println!("{:?}", args);
-
-    if (args.len() == 1) || args[1] == "--version" || args[1] == "-v" {
+    if (args.len() == 1) || ags[1] == "--version" || args[1] == "-v" {
         println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
         println!(
             "Copyright (C) {}, all rights reserved",
@@ -327,7 +376,7 @@ fn main() {
             remove_fonts(&install_dir, args[2..].to_vec());
         }
     }
-
+    */
     /*
     Update repo files
 
