@@ -1,6 +1,13 @@
 use std::collections::HashMap;
 use std::env::args;
 use std::fs::{self, create_dir_all};
+
+#[cfg(target_os = "windows")]
+use std::os::windows::fs::MetadataExt;
+
+#[cfg(target_os = "linux")]
+use std::os::linux::fs::MetadataExt;
+
 use std::path::PathBuf;
 use std::process::Command;
 use std::str;
@@ -10,6 +17,9 @@ use dirs::data_dir;
 
 use font_kit::handle::Handle;
 use font_kit::source::SystemSource;
+
+use chrono::DateTime;
+use chrono::offset::Utc;
 
 use serde_json;
 use toml;
@@ -39,8 +49,11 @@ fn get_share_dir() -> PathBuf {
 
 fn get_local_repos(repo_file: PathBuf) -> Option<repo::Repositories> {
     if repo_file.exists() {
-        let repo_data = fs::read_to_string(&repo_file).expect("Unable to read repositories file");
-        Some(toml::from_str(&repo_data).expect("Failed to read repositories file"))
+        let repo_data = fs::read_to_string(&repo_file)
+            .expect("Unable to read repositories file");
+        Some(toml::from_str(&repo_data)
+             .expect("Failed to read repositories file")
+        )
     } else {
         None
     }
@@ -77,7 +90,12 @@ fn update_repos(repos: repo::Repositories, repos_dir: &PathBuf) {
     }
 }
 
-fn family_in_repo(repos_dir: &PathBuf, repo: &str, search_string: &str) -> Vec<String> {
+fn family_in_repo(
+    repos_dir: &PathBuf, 
+    repo: &str, 
+    search_string: &str
+    )
+    -> Vec<String> {
     let fonts_as_string =
         fs::read_to_string(repos_dir.join(&repo)).expect("Couldn't find specified repository");
 
@@ -176,7 +194,11 @@ fn download_fonts(
     match &repo {
         Some(repo) => {
             for i in fonts.iter() {
-                let results = files_in_repo(&repos_dir, &format!("{}{}", &repo, ".json"), i);
+                let results = files_in_repo(
+                    &repos_dir, 
+                    &format!("{}{}", &repo, ".json"),
+                    i);
+
                 for (variant, url) in results {
                     let extension: &str = url
                         .split(".")
@@ -184,7 +206,12 @@ fn download_fonts(
                         .last()
                         .expect("File extension not found!");
                     download_file(
-                        &download_dir.join(&format!("{}-{}.{}", i, &variant, extension)),
+                        &download_dir.join(&format!(
+                                "{}-{}.{}",
+                                i,
+                                &variant,
+                                extension)
+                        ),
                         &url,
                     )
                     .expect(&format!("Failed to download font {}", i));
@@ -208,7 +235,12 @@ fn download_fonts(
                             .last()
                             .expect("File extension not found!");
                         download_file(
-                            &download_dir.join(&format!("{}-{}.{}", i, &variant, extension)),
+                            &download_dir.join(&format!(
+                                    "{}-{}.{}",
+                                    i,
+                                    &variant,
+                                    extension)
+                            ),
                             &url,
                         )
                         .expect(&format!("Failed to download font {}", i));
@@ -235,7 +267,8 @@ fn _get_local_fonts(fonts_dir: &PathBuf) -> HashMap<String, Vec<PathBuf>> {
             .first()
         {
             Some(font_name) => {
-                let counter = results.entry(font_name.to_string()).or_insert(Vec::new());
+                let counter = results.entry(font_name.to_string())
+                    .or_insert(Vec::new());
                 counter.push(font.as_ref().unwrap().path());
             }
             None => {}
@@ -259,13 +292,20 @@ fn get_local_fonts() -> HashMap<String, Vec<FontFile>> {
                     font_index,
                 } = font
                 {
-                    let metadata = fs::metadata(&path).expect("Unable to read metadata!");
-                    let counter = results.entry(font_info.family_name()).or_insert(Vec::new());
+                    let metadata = fs::metadata(&path)
+                        .expect("Unable to read metadata!");
+                    let counter = results.entry(font_info.family_name())
+                        .or_insert(Vec::new());
                     counter.push(FontFile {
                         variant: font_info.full_name(),
                         path: path.clone(),
                         system: true,
-                        creation_date: metadata.created().expect("Unable to retrive creation time"),
+                        creation_date: 
+                            if !(cfg!(target_os = "windows")) {
+                                metadata.modified().unwrap()
+                            } else {
+                                metadata.modified().unwrap()
+                            }
                     });
                 }
             }
@@ -275,20 +315,18 @@ fn get_local_fonts() -> HashMap<String, Vec<FontFile>> {
     results
 }
 
-fn remove_fonts(fonts_dir: &PathBuf, font_names: Vec<String>) {
+fn remove_fonts(font_names: Vec<String>) {
     let local_fonts = get_local_fonts();
-    /*
-    for (local_font_name, paths) in local_fonts {
-        for font_name in font_names.iter() {
-            if font_name == &local_font_name {
-                for path in paths.iter() {
-                    println!("Removing file {}", &path.as_os_str().to_str().unwrap());
-                    fs::remove_file(&path).expect("Couldn't remove file");
+    for (family_name, font_list) in &local_fonts {
+        for search_name in &font_names {
+            if search_name == family_name {
+                for font in font_list {
+                    println!("Removing {}...", &font.path.display());
+                    fs::remove_file(&font.path).expect("Unable to remove file");
                 }
             }
         }
     }
-    */
 }
 
 fn main() {
@@ -304,7 +342,13 @@ fn main() {
 
     let args: Vec<String> = args().collect();
     
-    println!("{:?}", get_local_fonts());
+    for (family_name, fonts) in get_local_fonts() {
+        for font in fonts {
+            let date: DateTime<Utc> = font.creation_date.into();
+            println!("{} -> {}: {:?}", family_name, font.variant, date);
+        }
+    }
+    
     /*
 
     if (args.len() == 1) || ags[1] == "--version" || args[1] == "-v" {
