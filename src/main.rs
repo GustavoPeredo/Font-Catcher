@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::env::args;
 use std::fs::{self, create_dir_all, File};
-use std::io::{stdout, Write};
+use std::io::Write;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::MetadataExt;
@@ -71,10 +71,10 @@ fn get_repo_as_file(name: &str) -> String {
     format!("{}{}", name, ".json")
 }
 
-fn update_repos(repos: Vec<repo::Repository>, repos_dir: &PathBuf) {
+fn update_repos(repos: &Vec<repo::Repository>, repos_dir: &PathBuf) {
     create_dir_all(repos_dir).expect("Couldn't create direcotires!");
     for repo in repos.iter() {
-        println!("Updating {}...", repo.name);
+        println!("Updating {}...", &repo.name);
         fs::write(
             repos_dir.join(get_repo_as_file(&repo.name)),
             match &repo.key {
@@ -155,7 +155,7 @@ fn get_local_fonts() -> HashMap<String, Vec<FontFile>> {
 
 
 fn get_populated_repos(
-    repos: Vec<repo::Repository>,
+    repos: &Vec<repo::Repository>,
     repos_dir: &PathBuf
 ) -> HashMap<String, repo::FontsList> {
     let mut populated_repos: HashMap<String, repo::FontsList> = HashMap::new();
@@ -164,7 +164,7 @@ fn get_populated_repos(
         let repo_path = repos_dir.join(get_repo_as_file(&repo.name));
         if repo_path.exists() {
             populated_repos.insert(
-                repo.name,
+                repo.name.clone(),
                 serde_json::from_str(
                     &fs::read_to_string(&repo_path).expect("Couldn't find
                         specifiedrepository"),
@@ -266,12 +266,13 @@ fn main() {
     ].into_iter().flatten().collect();
 
     let populated_repos: HashMap<String, repo::FontsList> = get_populated_repos(
-        repos,
+        &repos,
         &repos_dir
     );
 
     let args: Vec<String> = args().collect();
     
+    update_repos(&repos, &repos_dir);
     search_fonts(&populated_repos, "Roboto");
 
     /*
@@ -293,7 +294,6 @@ fn main() {
         println!("");
         println!("{}", env!("CARGO_PKG_DESCRIPTION"));
     } else if args[1] == "update-repos" {
-        update_repos(default_repos, &repos_dir);
         update_repos(local_repos, &repos_dir);
     } else if args.len() == 2 {
         if args[1] == "install"
