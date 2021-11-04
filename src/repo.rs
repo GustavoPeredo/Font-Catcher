@@ -32,25 +32,21 @@ pub struct Repositories {
     pub repo: Vec<Repository>,
 }
 
-pub fn get_default_repos() -> Repositories {
-    let repos: Repositories = Repositories {
-        repo: vec![
-            #[cfg(feature = "google_repo")]
-            Repository {
-                name: "Google Fonts".to_string(),
-                url: "https://www.googleapis.com/webfonts/v1/webfonts?key={API_KEY}".to_string(),
-                key: {
-                    const PASSWORD: &'static str = env!("GOOGLE_FONTS_KEY");
-                    Some(PASSWORD.to_string())
-                },
+pub fn get_default_repos() -> Vec<Repository> {
+    vec![
+        #[cfg(feature = "google_repo")]
+        Repository {
+            name: "Google Fonts".to_string(),
+            url: "https://www.googleapis.com/webfonts/v1/webfonts?key={API_KEY}".to_string(),
+            key: {
+                const PASSWORD: &'static str = env!("GOOGLE_FONTS_KEY");
+                Some(PASSWORD.to_string())
             },
-
-            Repository {
-                name: "Open Font Repository".to_string(),
-                url: "https://raw.githubusercontent.com/GustavoPeredo/open-font-repository/main/fonts.json".to_string(),
-                key: None,
-            }
-        ],
-    };
-    repos
+        },
+        Repository {
+            name: "Open Font Repository".to_string(),
+            url: "https://raw.githubusercontent.com/GustavoPeredo/open-font-repository/main/fonts.json".to_string(),
+            key: None,
+        }
+    ]
 }

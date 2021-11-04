@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::env::args;
-use std::fs::{self, create_dir_all};
+use std::fs::{self, create_dir_all, File};
+use std::io::{stdout, Write};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::MetadataExt;
@@ -9,7 +10,6 @@ use std::os::windows::fs::MetadataExt;
 use std::os::linux::fs::MetadataExt;
 
 use std::path::PathBuf;
-use std::process::Command;
 use std::str;
 use std::time;
 
@@ -20,6 +20,8 @@ use font_kit::source::SystemSource;
 
 use chrono::DateTime;
 use chrono::offset::Utc;
+
+use curl::easy::Easy;
 
 use serde_json;
 use toml;
@@ -47,40 +49,34 @@ fn get_share_dir() -> PathBuf {
     share
 }
 
-fn get_local_repos(repo_file: PathBuf) -> Option<repo::Repositories> {
-    if repo_file.exists() {
-        let repo_data = fs::read_to_string(&repo_file)
-            .expect("Unable to read repositories file");
-        Some(toml::from_str(&repo_data)
-             .expect("Failed to read repositories file")
-        )
-    } else {
-        None
-    }
+fn get_local_repos(repo_file: &PathBuf) -> Vec<repo::Repository> {
+    let repositories: repo::Repositories = toml::from_str(
+        &fs::read_to_string(repo_file)
+            .expect("Unable to read repositories file")
+    ).expect("Failed to read repositories file");
+    repositories.repo
 }
 
 fn get_repo_json(url: &str) -> String {
     if cfg!(target_os = "windows") {
         return "".to_string();
     }
-    match str::from_utf8(
-        &Command::new("curl")
-            .arg(url)
-            .output()
-            .expect("Failed to execute process")
-            .stdout,
-    ) {
+    match str::from_utf8(&download(url)) {
         Ok(v) => v.to_string(),
         Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
     }
 }
 
-fn update_repos(repos: repo::Repositories, repos_dir: &PathBuf) {
+fn get_repo_as_file(name: &str) -> String {
+    format!("{}{}", name, ".json")
+}
+
+fn update_repos(repos: Vec<repo::Repository>, repos_dir: &PathBuf) {
     create_dir_all(repos_dir).expect("Couldn't create direcotires!");
-    for repo in repos.repo.iter() {
+    for repo in repos.iter() {
         println!("Updating {}...", repo.name);
         fs::write(
-            repos_dir.join(format!("{}{}", &repo.name, ".json")),
+            repos_dir.join(get_repo_as_file(&repo.name)),
             match &repo.key {
                 Some(key) => get_repo_json(&repo.url.replace("{API_KEY}", &key)),
                 _ => get_repo_json(&repo.url),
@@ -90,195 +86,37 @@ fn update_repos(repos: repo::Repositories, repos_dir: &PathBuf) {
     }
 }
 
-fn family_in_repo(
-    repos_dir: &PathBuf, 
-    repo: &str, 
-    search_string: &str
-    )
-    -> Vec<String> {
-    let fonts_as_string =
-        fs::read_to_string(repos_dir.join(&repo)).expect("Couldn't find specified repository");
+fn download(url: &str) -> Vec<u8> {
+    let mut handle = Easy::new();
+    let mut file: Vec<u8> = Vec::new();
 
-    let mut results: Vec<String> = Vec::new();
+    handle.url(url).unwrap();
+    let _location = handle.follow_location(true);
 
-    let fonts: repo::FontsList =
-        serde_json::from_str(&fonts_as_string).expect("Repository file bad formatted");
-    for font in fonts.items.iter() {
-        if font.family.contains(&search_string) {
-            results.push(font.family.to_owned());
-        }
+    {
+    let mut transfer = handle.transfer();
+        transfer.write_function(|data| {
+            file.extend_from_slice(data);
+            Ok(data.len())
+        }).unwrap();
+        transfer.perform().unwrap();
     }
-    results
+    file
 }
 
-fn print_results(repo: &str, fonts: &Vec<String>) {
-    if fonts.len() > 0 {
-        for i in fonts.iter() {
-            println!("{}/{}", &repo, &i);
-        }
-    } else {
-        println!("No results found!");
-    }
-}
-
-fn search_fonts(repos_dir: &PathBuf, repo: Option<&str>, search_string: &str) {
-    match &repo {
-        Some(repo) => {
-            let results =
-                family_in_repo(&repos_dir, &format!("{}{}", &repo, ".json"), search_string);
-            print_results(&repo, &results);
-        }
-        _ => {
-            let files = fs::read_dir(&repos_dir).expect("Folder not available");
-            for repo in files {
-                let results = family_in_repo(
-                    &repos_dir,
-                    &repo.as_ref().unwrap().file_name().to_str().unwrap(),
-                    search_string,
-                );
-                print_results(
-                    &repo
-                        .as_ref()
-                        .unwrap()
-                        .path()
-                        .file_stem()
-                        .unwrap()
-                        .to_str()
-                        .unwrap(),
-                    &results,
-                );
-            }
-        }
-    };
-}
-
-fn download_file(output_file: &PathBuf, url: &str) -> Result<std::process::Output, std::io::Error> {
+fn download_file(output_file: &PathBuf, url: &str) -> std::io::Result<()> {
     create_dir_all(output_file.parent().unwrap()).expect("Couldn't create direcotires!");
     println!(
         "Downloading to {} from {}...",
         output_file.as_os_str().to_str().unwrap(),
         url
     );
-    Command::new("curl")
-        .arg("-L") //Follow url
-        .arg("-o")
-        .arg(output_file.as_os_str().to_str().unwrap())
-        .arg(url)
-        .output()
-}
-
-fn files_in_repo(repos_dir: &PathBuf, repo: &str, search_string: &str) -> HashMap<String, String> {
-    let fonts_as_string =
-        fs::read_to_string(repos_dir.join(&repo)).expect("Couldn't find specified repository");
-
-    let mut results: HashMap<String, String> = HashMap::new();
-
-    let fonts: repo::FontsList =
-        serde_json::from_str(&fonts_as_string).expect("Repository file bad formatted");
-    for font in fonts.items.iter() {
-        if font.family == search_string {
-            for (i, j) in font.files.iter() {
-                results.insert(i.to_string(), j.to_string());
-            }
-        }
-    }
-    results
-}
-
-fn download_fonts(
-    repos_dir: &PathBuf,
-    download_dir: &PathBuf,
-    repo: Option<&str>,
-    fonts: Vec<String>,
-) {
-    match &repo {
-        Some(repo) => {
-            for i in fonts.iter() {
-                let results = files_in_repo(
-                    &repos_dir, 
-                    &format!("{}{}", &repo, ".json"),
-                    i);
-
-                for (variant, url) in results {
-                    let extension: &str = url
-                        .split(".")
-                        .collect::<Vec<&str>>()
-                        .last()
-                        .expect("File extension not found!");
-                    download_file(
-                        &download_dir.join(&format!(
-                                "{}-{}.{}",
-                                i,
-                                &variant,
-                                extension)
-                        ),
-                        &url,
-                    )
-                    .expect(&format!("Failed to download font {}", i));
-                }
-            }
-        }
-        _ => {
-            let files = fs::read_dir(&repos_dir).expect("Folder not available");
-            for repo in files {
-                for i in fonts.iter() {
-                    let results = files_in_repo(
-                        &repos_dir,
-                        &repo.as_ref().unwrap().file_name().to_str().unwrap(),
-                        i,
-                    );
-                    // Make this threaded
-                    for (variant, url) in results {
-                        let extension: &str = url
-                            .split(".")
-                            .collect::<Vec<&str>>()
-                            .last()
-                            .expect("File extension not found!");
-                        download_file(
-                            &download_dir.join(&format!(
-                                    "{}-{}.{}",
-                                    i,
-                                    &variant,
-                                    extension)
-                            ),
-                            &url,
-                        )
-                        .expect(&format!("Failed to download font {}", i));
-                    }
-                }
-            }
-        }
-    };
-}
-
-fn _get_local_fonts(fonts_dir: &PathBuf) -> HashMap<String, Vec<PathBuf>> {
-    let files = fs::read_dir(fonts_dir).expect("Folder no available");
-    let mut results: HashMap<String, Vec<PathBuf>> = HashMap::new();
-    for font in files {
-        match font
-            .as_ref()
-            .unwrap()
-            .path()
-            .file_stem()
-            .unwrap()
-            .to_string_lossy()
-            .split("-")
-            .collect::<Vec<&str>>()
-            .first()
-        {
-            Some(font_name) => {
-                let counter = results.entry(font_name.to_string())
-                    .or_insert(Vec::new());
-                counter.push(font.as_ref().unwrap().path());
-            }
-            None => {}
-        }
-    }
-    results
+    let mut file = File::create(output_file)?;
+    file.write_all(download(url).as_slice())?;
+    Ok(())
 }
 
 fn get_local_fonts() -> HashMap<String, Vec<FontFile>> {
-    /*let files = fs::read_dir(fonts_dir).expect("Folder not available");*/
     let mut results: HashMap<String, Vec<FontFile>> = HashMap::new();
 
     let source = SystemSource::new();
@@ -315,6 +153,91 @@ fn get_local_fonts() -> HashMap<String, Vec<FontFile>> {
     results
 }
 
+
+fn get_populated_repos(
+    repos: Vec<repo::Repository>,
+    repos_dir: &PathBuf
+) -> HashMap<String, repo::FontsList> {
+    let mut populated_repos: HashMap<String, repo::FontsList> = HashMap::new();
+
+    for repo in repos{
+        let repo_path = repos_dir.join(get_repo_as_file(&repo.name));
+        if repo_path.exists() {
+            populated_repos.insert(
+                repo.name,
+                serde_json::from_str(
+                    &fs::read_to_string(&repo_path).expect("Couldn't find
+                        specifiedrepository"),
+                ).expect("Repository file bad formatted")
+            );
+        }
+    }
+    populated_repos
+}
+
+fn search_fonts(
+    repos: &HashMap<String, repo::FontsList>,
+    search_string: &str
+) {
+    let fonts: Vec<repo::Font> = Vec::new();
+
+    for (repo_name, fonts_list) in repos.iter() {
+        for font in fonts_list.items.iter() {
+            if font.family.contains(search_string) {
+                println!("{}/{}", repo_name, font.family);
+                println!("Variants:");
+                for variant in font.variants.iter() {
+                    println!("  {}", variant);
+                }
+            }
+        }
+    }
+}
+
+fn download_fonts(
+    repos: &HashMap<String, repo::FontsList>,
+    download_dir: &PathBuf,
+    selected_fonts: Vec<String>,
+) {
+    for (_repo_name, repo_fontlist) in repos.iter() {
+        for font in repo_fontlist.items.iter() {
+            for selected_font in selected_fonts.iter() {
+                if &font.family == selected_font {
+                    for (variant, url) in font.files.iter() {  
+                        let extension: &str = url
+                            .split(".")
+                            .collect::<Vec<&str>>()
+                            .last()
+                            .expect("File extension not found!");
+                        println!(
+                            "Downloading {} from {}",
+                            &format!(
+                                "{}-{}.{}",
+                                &font.family,
+                                &variant,
+                                &extension),
+                            &url);
+
+                        download_file(
+                            &download_dir.join(&format!(
+                                "{}-{}.{}",
+                                &font.family,
+                                &variant,
+                                &extension)
+                            ),
+                            &url,
+                        ).expect(&format!(
+                                "Failed to download font {} {}",
+                                font.family,
+                                &variant)
+                        );
+                    }
+                }
+            }
+        }
+    }
+} 
+
 fn remove_fonts(font_names: Vec<String>) {
     let local_fonts = get_local_fonts();
     for (family_name, font_list) in &local_fonts {
@@ -337,20 +260,27 @@ fn main() {
 
     let repos_file = font_catcher_dir.join("repos.conf");
 
-    let default_repos: repo::Repositories = repo::get_default_repos();
-    let local_repos: Option<repo::Repositories> = get_local_repos(repos_file);
+    let repos: Vec<repo::Repository> = vec![
+        repo::get_default_repos(),
+        get_local_repos(&repos_file)
+    ].into_iter().flatten().collect();
+
+    let populated_repos: HashMap<String, repo::FontsList> = get_populated_repos(
+        repos,
+        &repos_dir
+    );
 
     let args: Vec<String> = args().collect();
     
+    search_fonts(&populated_repos, "Roboto");
+
+    /*
     for (family_name, fonts) in get_local_fonts() {
         for font in fonts {
             let date: DateTime<Utc> = font.creation_date.into();
             println!("{} -> {}: {:?}", family_name, font.variant, date);
         }
     }
-    
-    /*
-
     if (args.len() == 1) || ags[1] == "--version" || args[1] == "-v" {
         println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
         println!(
