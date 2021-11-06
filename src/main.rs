@@ -200,8 +200,8 @@ fn download_fonts(
     selected_fonts: Vec<String>,
 ) {
     for (_repo_name, repo_fontlist) in repos.iter() {
-        for font in repo_fontlist.items.iter() {
-            for selected_font in selected_fonts.iter() {
+        for selected_font in selected_fonts.iter() {
+            for font in repo_fontlist.items.iter() {
                 if &font.family == selected_font {
                     for (variant, url) in font.files.iter() {  
                         let extension: &str = url
@@ -232,11 +232,29 @@ fn download_fonts(
                                 &variant)
                         );
                     }
+                    break;
                 }
             }
         }
     }
 } 
+
+fn load_font(
+    repos: &HashMap<String, repo::FontsList>,
+    download_dir: &PathBuf,
+    selected_font: String,
+) -> Vec<u8> {
+    let mut bytes: Vec<u8> = Vec::new();
+    for (_repo_name, repo_fontlist) in repos.iter() {
+        for font in repo_fontlist.items.iter() {
+            if font.family == selected_font {
+                bytes = download(font.files.values().collect::<Vec<&String>>().first().expect("Yield no results"));
+                break;
+            }
+        }
+    }
+    bytes
+}
 
 fn remove_fonts(font_names: Vec<String>) {
     let local_fonts = get_local_fonts();
