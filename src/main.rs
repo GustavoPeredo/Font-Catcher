@@ -97,7 +97,7 @@ fn get_local_fonts() -> HashMap<String, Vec<FontFile>> {
             Ok(font_info) => {
                 if let Handle::Path {
                     ref path,
-                    font_index,
+                    font_index: _,
                 } = font
                 {
                     let metadata = fs::metadata(&path)
@@ -170,11 +170,9 @@ pub fn search_fonts(
     repos: &HashMap<String, repo::FontsList>,
     search_string: &str
 ) {
-    let fonts: Vec<repo::Font> = Vec::new();
-
     for (repo_name, fonts_list) in repos.iter() {
         for font in fonts_list.items.iter() {
-            if font.family.contains(search_string) {
+            if font.family.to_lowercase().contains(&search_string.to_lowercase()) {
                 println!("{}/{}", repo_name, font.family);
                 println!("Variants:");
                 for variant in font.variants.iter() {
@@ -193,7 +191,7 @@ pub fn download_fonts(
     for (_repo_name, repo_fontlist) in repos.iter() {
         for selected_font in selected_fonts.iter() {
             for font in repo_fontlist.items.iter() {
-                if &font.family == selected_font {
+                if font.family.eq_ignore_ascii_case(&selected_font) {
                     for (variant, url) in font.files.iter() {  
                         let extension: &str = url
                             .split(".")
@@ -232,13 +230,12 @@ pub fn download_fonts(
 
 pub fn load_font(
     repos: &HashMap<String, repo::FontsList>,
-    download_dir: &PathBuf,
     selected_font: String,
 ) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
     for (_repo_name, repo_fontlist) in repos.iter() {
         for font in repo_fontlist.items.iter() {
-            if font.family == selected_font {
+            if font.family.eq_ignore_ascii_case(&selected_font) {
                 bytes = download(font.files.values().collect::<Vec<&String>>().first().expect("Yield no results"));
                 break;
             }
@@ -251,7 +248,7 @@ pub fn remove_fonts(font_names: Vec<String>) {
     let local_fonts = get_local_fonts();
     for (family_name, font_list) in &local_fonts {
         for search_name in &font_names {
-            if search_name == family_name {
+            if search_name.eq_ignore_ascii_case(&family_name) {
                 for font in font_list {
                     println!("Removing {}...", &font.path.display());
                     fs::remove_file(&font.path).expect("Unable to remove file");
@@ -287,6 +284,19 @@ pub fn check_for_font_updates(repos: &HashMap<String, repo::FontsList>) -> HashM
     results
 }
 
+fn print_version() {
+                    println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+                    println!(
+                        "Copyright (C) {}, all rights reserved",
+                        env!("CARGO_PKG_AUTHORS")
+                    );
+                    println!("This is free software. It is licensed for use, modification and");
+                    println!("redistribution under the terms of the GNU Affero General Public License,");
+                    println!("version 3. <https://www.gnu.org/licenses/agpl-3.0.en.html>");
+                    println!("");
+                    println!("{}", env!("CARGO_PKG_DESCRIPTION"));
+}
+
 fn main() {
     let font_catcher_dir = get_share_dir();
 
@@ -295,98 +305,68 @@ fn main() {
 
     let repos_file = font_catcher_dir.join("repos.conf");
 
-    let repos: Vec<repo::Repository> = vec![
+    let mut repos: Vec<repo::Repository> = vec![
         repo::get_default_repos(),
         get_local_repos(&repos_file)
     ].into_iter().flatten().collect();
+    
+    let args: Vec<String> = args().collect();
+    
+    for i in 1..(args.len()) {
+        if args[i].len() > 2 && &args[i][..2] == "--" {
+            match &args[i][2..] {
+                "repo" => {
+                    for repo in 0..repos.len() {
+                        if repos[repo].name != args[i + 1] {
+                            repos.remove(repo);
+                        }
+                    }
+                },
+                _ => {}
+            }
+        }
+    }
 
     let populated_repos: HashMap<String, repo::FontsList> = get_populated_repos(
         &repos,
         &repos_dir
     );
-
-    let args: Vec<String> = args().collect();
     
-    update_repos(&repos, &repos_dir);
-    search_fonts(&populated_repos, "Roboto");
-    check_for_font_updates(&populated_repos);
-
-    /*
-    for (family_name, fonts) in get_local_fonts() {
-        for font in fonts {
-            let date: DateTime<Utc> = font.creation_date.into();
-            println!("{} -> {}: {:?}", family_name, font.variant, date);
-        }
-    }
-    if (args.len() == 1) || ags[1] == "--version" || args[1] == "-v" {
-        println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
-        println!(
-            "Copyright (C) {}, all rights reserved",
-            env!("CARGO_PKG_AUTHORS")
-        );
-        println!("This is free software. It is licensed for use, modification and");
-        println!("redistribution under the terms of the GNU Affero General Public License,");
-        println!("version 3. <https://www.gnu.org/licenses/agpl-3.0.en.html>");
-        println!("");
-        println!("{}", env!("CARGO_PKG_DESCRIPTION"));
-    } else if args[1] == "update-repos" {
-        update_repos(local_repos, &repos_dir);
-    } else if args.len() == 2 {
-        if args[1] == "install"
-            || args[1] == "remove"
-            || args[1] == "search"
-            || args[1] == "download"
-        {
-            println!("`{}` receives at least one argument", args[1]);
-        } else {
-            println!("`{}` command not found", args[1]);
-        }
+    if args.len() < 2 {
+        print_version();
     } else {
-        if args[1] == "install" {
-            if args[2] == "--repo" {
-                if args.len() > 4 {
-                    download_fonts(&repos_dir, &install_dir, Some(&args[3]), args[4..].to_vec());
-                } else {
-                    println!("Missing fonts to install");
+        for i in 1..(args.len()) {
+            match &args[i][..] {
+                "version" => {
+                    print_version();
+                    break;
+                },
+                "update-repos" => {
+                    update_repos(&repos, &repos_dir);
+                    break;
+                },
+                "install" => {
+                    download_fonts(&populated_repos, &install_dir, args[i..].to_vec());
+                    break;
+                },
+                "download" => {
+                    download_fonts(&populated_repos, &PathBuf::from(&args[i+1]), args[i+1..].to_vec());
+                    break;
+                },
+                "search" => {
+                    search_fonts(&populated_repos, &args[i+1]);
+                    break;
+                },
+                "remove" => {
+                    remove_fonts(args[i..].to_vec());
+                    break;
+                },
+                _ => {
+                    println!("{} is not a valid operation, skipping...", args[i]);
                 }
-            } else {
-                download_fonts(&repos_dir, &install_dir, None, args[3..].to_vec());
             }
-        } else if args[1] == "download" {
-            if args[3] == "--repo" {
-                if args.len() > 5 {
-                    download_fonts(
-                        &repos_dir,
-                        &PathBuf::from(&args[2]),
-                        Some(&args[4]),
-                        args[5..].to_vec(),
-                    );
-                } else {
-                    println!("Missing fonts or output directory to download");
-                }
-            } else {
-                download_fonts(
-                    &repos_dir,
-                    &PathBuf::from(&args[2]),
-                    None,
-                    args[3..].to_vec(),
-                );
-            }
-        } else if args[1] == "search" {
-            if args[2] == "--repo" {
-                if args.len() > 4 {
-                    search_fonts(&repos_dir, Some(&args[3]), &args[4]);
-                } else {
-                    println!("Missing string to search");
-                }
-            } else {
-                search_fonts(&repos_dir, None, &args[2]);
-            }
-        } else if args[1] == "remove" {
-            remove_fonts(&install_dir, args[2..].to_vec());
         }
     }
-    */
     /*
     Update repo files
 
