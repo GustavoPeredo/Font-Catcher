@@ -9,7 +9,7 @@ pub struct Font {
     pub variants: Vec<String>,
     pub subsets: Option<Vec<String>>,
     pub version: Option<String>,
-    pub last_modified: Option<String>,
+    pub lastModified: Option<String>,
     pub files: HashMap<String, String>,
     pub commentary: Option<String>,
 }

@@ -18,7 +18,7 @@ use dirs::data_dir;
 use font_kit::handle::Handle;
 use font_kit::source::SystemSource;
 
-use chrono::DateTime;
+use chrono::{DateTime, NaiveDate};
 use chrono::offset::Utc;
 
 use curl::easy::Easy;
@@ -270,6 +270,32 @@ fn remove_fonts(font_names: Vec<String>) {
     }
 }
 
+fn check_for_font_updates(repos: &HashMap<String, repo::FontsList>) -> HashMap<String, Vec<String>> {
+    let mut results: HashMap<String, Vec<String>> = HashMap::new();
+    for (local_family_name, local_fonts) in get_local_fonts() {
+        let local_date: DateTime<Utc> = local_fonts.first().unwrap().creation_date.into();
+        for (repo_name, repo_fonts) in repos.iter() {
+            for repo_font in repo_fonts.items.iter() {
+                if local_family_name == repo_font.family {
+                    match &repo_font.lastModified {
+                        Some(text_date) => {
+                            let repo_date: DateTime<Utc> = DateTime::from_utc(NaiveDate::parse_from_str(text_date, "%Y-%m-%d").expect("Invalid format for font").and_hms(0,0,0), Utc);
+                            if repo_date > local_date {
+                                println!("{}/{}", repo_name, local_family_name);
+                                results.entry(repo_name.to_string())
+                                    .or_insert_with(Vec::new)
+                                    .push(local_family_name.to_string());
+                            }
+                        },
+                        None => {},
+                    }
+                }
+            }
+        }
+    }
+    results
+}
+
 fn main() {
     let font_catcher_dir = get_share_dir();
 
@@ -292,6 +318,7 @@ fn main() {
     
     update_repos(&repos, &repos_dir);
     search_fonts(&populated_repos, "Roboto");
+    check_for_font_updates(&populated_repos);
 
     /*
     for (family_name, fonts) in get_local_fonts() {
