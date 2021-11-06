@@ -6,9 +6,6 @@ use std::io::Write;
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::MetadataExt;
 
-#[cfg(target_os = "linux")]
-use std::os::linux::fs::MetadataExt;
-
 use std::path::PathBuf;
 use std::str;
 use std::time;
@@ -71,21 +68,6 @@ fn get_repo_as_file(name: &str) -> String {
     format!("{}{}", name, ".json")
 }
 
-fn update_repos(repos: &Vec<repo::Repository>, repos_dir: &PathBuf) {
-    create_dir_all(repos_dir).expect("Couldn't create direcotires!");
-    for repo in repos.iter() {
-        println!("Updating {}...", &repo.name);
-        fs::write(
-            repos_dir.join(get_repo_as_file(&repo.name)),
-            match &repo.key {
-                Some(key) => get_repo_json(&repo.url.replace("{API_KEY}", &key)),
-                _ => get_repo_json(&repo.url),
-            },
-        )
-        .expect("Unable to write repo files");
-    }
-}
-
 fn download(url: &str) -> Vec<u8> {
     let mut handle = Easy::new();
     let mut file: Vec<u8> = Vec::new();
@@ -102,18 +84,6 @@ fn download(url: &str) -> Vec<u8> {
         transfer.perform().unwrap();
     }
     file
-}
-
-fn download_file(output_file: &PathBuf, url: &str) -> std::io::Result<()> {
-    create_dir_all(output_file.parent().unwrap()).expect("Couldn't create direcotires!");
-    println!(
-        "Downloading to {} from {}...",
-        output_file.as_os_str().to_str().unwrap(),
-        url
-    );
-    let mut file = File::create(output_file)?;
-    file.write_all(download(url).as_slice())?;
-    Ok(())
 }
 
 fn get_local_fonts() -> HashMap<String, Vec<FontFile>> {
@@ -138,12 +108,7 @@ fn get_local_fonts() -> HashMap<String, Vec<FontFile>> {
                         variant: font_info.full_name(),
                         path: path.clone(),
                         system: true,
-                        creation_date: 
-                            if !(cfg!(target_os = "windows")) {
-                                metadata.modified().unwrap()
-                            } else {
-                                metadata.modified().unwrap()
-                            }
+                        creation_date: metadata.modified().unwrap()
                     });
                 }
             }
@@ -152,7 +117,6 @@ fn get_local_fonts() -> HashMap<String, Vec<FontFile>> {
     }
     results
 }
-
 
 fn get_populated_repos(
     repos: &Vec<repo::Repository>,
@@ -175,7 +139,34 @@ fn get_populated_repos(
     populated_repos
 }
 
-fn search_fonts(
+fn download_file(output_file: &PathBuf, url: &str) -> std::io::Result<()> {
+    create_dir_all(output_file.parent().unwrap()).expect("Couldn't create direcotires!");
+    println!(
+        "Downloading to {} from {}...",
+        output_file.as_os_str().to_str().unwrap(),
+        url
+    );
+    let mut file = File::create(output_file)?;
+    file.write_all(download(url).as_slice())?;
+    Ok(())
+}
+
+pub fn update_repos(repos: &Vec<repo::Repository>, repos_dir: &PathBuf) {
+    create_dir_all(repos_dir).expect("Couldn't create direcotires!");
+    for repo in repos.iter() {
+        println!("Updating {}...", &repo.name);
+        fs::write(
+            repos_dir.join(get_repo_as_file(&repo.name)),
+            match &repo.key {
+                Some(key) => get_repo_json(&repo.url.replace("{API_KEY}", &key)),
+                _ => get_repo_json(&repo.url),
+            },
+        )
+        .expect("Unable to write repo files");
+    }
+}
+
+pub fn search_fonts(
     repos: &HashMap<String, repo::FontsList>,
     search_string: &str
 ) {
@@ -194,7 +185,7 @@ fn search_fonts(
     }
 }
 
-fn download_fonts(
+pub fn download_fonts(
     repos: &HashMap<String, repo::FontsList>,
     download_dir: &PathBuf,
     selected_fonts: Vec<String>,
@@ -239,7 +230,7 @@ fn download_fonts(
     }
 } 
 
-fn load_font(
+pub fn load_font(
     repos: &HashMap<String, repo::FontsList>,
     download_dir: &PathBuf,
     selected_font: String,
@@ -256,7 +247,7 @@ fn load_font(
     bytes
 }
 
-fn remove_fonts(font_names: Vec<String>) {
+pub fn remove_fonts(font_names: Vec<String>) {
     let local_fonts = get_local_fonts();
     for (family_name, font_list) in &local_fonts {
         for search_name in &font_names {
@@ -270,7 +261,7 @@ fn remove_fonts(font_names: Vec<String>) {
     }
 }
 
-fn check_for_font_updates(repos: &HashMap<String, repo::FontsList>) -> HashMap<String, Vec<String>> {
+pub fn check_for_font_updates(repos: &HashMap<String, repo::FontsList>) -> HashMap<String, Vec<String>> {
     let mut results: HashMap<String, Vec<String>> = HashMap::new();
     for (local_family_name, local_fonts) in get_local_fonts() {
         let local_date: DateTime<Utc> = local_fonts.first().unwrap().creation_date.into();
