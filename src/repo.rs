@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Font {
     pub kind: Option<String>,
     pub family: String,
@@ -14,7 +14,7 @@ pub struct Font {
     pub commentary: Option<String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct FontsList {
     pub kind: String,
     pub items: Vec<Font>,

@@ -258,8 +258,8 @@ pub fn remove_fonts(font_names: Vec<String>) {
     }
 }
 
-pub fn check_for_font_updates(repos: &HashMap<String, repo::FontsList>) -> HashMap<String, Vec<String>> {
-    let mut results: HashMap<String, Vec<String>> = HashMap::new();
+pub fn check_for_font_updates(repos: &HashMap<String, repo::FontsList>) -> Vec<String> {
+    let mut results: HashMap<String, DateTime<Utc>> = HashMap::new();
     for (local_family_name, local_fonts) in get_local_fonts() {
         let local_date: DateTime<Utc> = local_fonts.first().unwrap().creation_date.into();
         for (repo_name, repo_fonts) in repos.iter() {
@@ -268,11 +268,10 @@ pub fn check_for_font_updates(repos: &HashMap<String, repo::FontsList>) -> HashM
                     match &repo_font.lastModified {
                         Some(text_date) => {
                             let repo_date: DateTime<Utc> = DateTime::from_utc(NaiveDate::parse_from_str(text_date, "%Y-%m-%d").expect("Invalid format for font").and_hms(0,0,0), Utc);
-                            if repo_date > local_date {
-                                println!("{}/{}", repo_name, local_family_name);
-                                results.entry(repo_name.to_string())
-                                    .or_insert_with(Vec::new)
-                                    .push(local_family_name.to_string());
+                            if repo_date >= local_date {
+                                results.entry(local_family_name.clone()).or_insert(local_date);
+                            } else if results.contains_key(&local_family_name) {
+                                results.remove(&local_family_name);
                             }
                         },
                         None => {},
@@ -281,7 +280,10 @@ pub fn check_for_font_updates(repos: &HashMap<String, repo::FontsList>) -> HashM
             }
         }
     }
-    results
+    for key in results.keys() {
+        println!("{}", key);
+    }
+    results.keys().cloned().collect()
 }
 
 fn print_version() {
@@ -360,6 +362,12 @@ fn main() {
                 "remove" => {
                     remove_fonts(args[i..].to_vec());
                     break;
+                },
+                "update-check" => {
+                    check_for_font_updates(&populated_repos);
+                },
+                "update" => {
+                    download_fonts(&populated_repos, &install_dir ,check_for_font_updates(&populated_repos));
                 },
                 _ => {
                     println!("{} is not a valid operation, skipping...", args[i]);
