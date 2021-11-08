@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::str;
 use std::time;
 
-use dirs::data_dir;
+use dirs::{data_dir, font_dir};
 
 use font_kit::handle::Handle;
 use font_kit::source::SystemSource;
@@ -303,7 +303,7 @@ fn main() {
     let font_catcher_dir = get_share_dir();
 
     let repos_dir = font_catcher_dir.join("repos");
-    let install_dir = data_dir().expect("Couldn't solve for dir").join("fonts");
+    let install_dir = font_dir().unwrap();
 
     let repos_file = font_catcher_dir.join("repos.conf");
 
