@@ -43,9 +43,9 @@ jobs:
               mv ./target/release/font-catcher ./font-catcher-linux-with-google-repo
          elif [ "$RUNNER_OS" == "Windows" ]; then
               cargo build --release
-              mv ./target/release/font-catcher.exe ./font-catcher-windows.exe
+              mv ./target/release/font-catcher ./font-catcher-windows.exe
               cargo build --release --features google_repo
-              mv ./target/release/font-catcher.exe ./font-catcher-windows-with-google-repo.exe
+              mv ./target/release/font-catcher ./font-catcher-windows-with-google-repo.exe
           elif [ "$RUNNER_OS" == "macOS" ]; then
               cargo build --release
               mv ./target/release/font-catcher ./font-catcher-macos
