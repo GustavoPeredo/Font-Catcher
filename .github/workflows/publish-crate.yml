@@ -28,7 +28,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos ]
+        os: ['ubuntu-latest', 'macos-latest', 'windows-latest']
     env:
       GOOGLE_FONTS_KEY: ${{ secrets.FONTS_API_KEY }}
     steps:
@@ -50,6 +50,7 @@ jobs:
               mv ./target/release/font-catcher ./font-catcher-macos
               cargo build --release --features google_repo
               mv ./target/release/font-catcher ./font-catcher-macos-with-google-repo
+          fi
       - name: GH Release
         uses: softprops/action-gh-release@v0.1.13
         with:
@@ -58,3 +59,7 @@ jobs:
           files: |
             ./font-catcher-macos
             ./font-catcher-macos-with-google-repo
+            ./font-catcher-linux
+            ./font-catcher-linux-with-google-repo
+            ./font-catcher-windows
+            ./font-catcher-windows-with-google-repo
