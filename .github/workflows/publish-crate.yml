@@ -11,7 +11,7 @@ on:
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "build"
-  build:
+  crates-io:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
@@ -23,3 +23,42 @@ jobs:
       # Runs a single command using the runners shell
       - name: Publish
         run: cargo login  ${{ secrets.CARGO_TOKEN }} && cargo publish
+  
+  release:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest windows-latest macos-latest ]
+    env:
+      GOOGLE_FONTS_KEY: ${{ secrets.FONTS_API_KEY }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Generate binaries
+        run: |
+         if [ "$RUNNER_OS" == "Linux" ]; then
+              cargo build --release
+              mv ./target/release/font-catcher ./font-catcher-linux
+              cargo build --release --features google_repo
+              mv ./target/release/font-catcher ./font-catcher-linux-with-google-repo
+         elif [ "$RUNNER_OS" == "Windows" ]; then
+              cargo build --release
+              mv ./target/release/font-catcher.exe ./font-catcher-windows.exe
+              cargo build --release --features google_repo
+              mv ./target/release/font-catcher.exe ./font-catcher-windows-with-google-repo.exe
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+              cargo build --release
+              mv ./target/release/font-catcher ./font-catcher-macos
+              cargo build --release --features google_repo
+              mv ./target/release/font-catcher ./font-catcher-macos-with-google-repo
+      - name: GH Release
+        uses: softprops/action-gh-release@v0.1.13
+        with:
+          generate_release_notes: true
+          token: ${{ secrets.ACCOUNT_CODE }}
+          files: |
+            ./font-catcher-linux
+            ./font-catcher-linux-with-google-repo
+            ./font-catcher-windows.exe
+            ./font-catcher-windows-with-google-repo.exe
+            ./font-catcher-macos
+            ./font-catcher-macos-with-google-repo
