@@ -415,6 +415,9 @@ fn run() -> Result<()> {
                 "update" => {
                     download_fonts(&populated_repos, &install_dir, check_for_font_updates(&populated_repos))?;
                 },
+                "list" => {
+                    list_fonts(&populated_repos);
+                }
                 _ => {
                     println!("{} is not a valid operation, skipping...", args[i]);
                 }
