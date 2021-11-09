@@ -28,7 +28,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ Linux macOS ]
+        os: [ self-hosted ]
     env:
       GOOGLE_FONTS_KEY: ${{ secrets.FONTS_API_KEY }}
     steps:
