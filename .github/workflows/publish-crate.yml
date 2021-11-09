@@ -51,6 +51,8 @@ jobs:
               cargo build --release --features google_repo
               mv ./target/release/font-catcher ./font-catcher-macos-with-google-repo
           fi
+        shell: bash
+        
       - name: GH Release
         uses: softprops/action-gh-release@v0.1.13
         with:
