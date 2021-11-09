@@ -1,11 +1,8 @@
 use std::collections::HashMap;
-use std::env::{self, args};
+use std::env::args;
 use std::fs::{self, create_dir_all, File};
 use std::io::{Result, Write};
 use std::process;
-
-#[cfg(target_os = "windows")]
-use std::os::windows::fs::MetadataExt;
 
 use std::path::PathBuf;
 use std::str;
@@ -17,8 +14,9 @@ use dirs::data_dir;
 use dirs::font_dir;
 
 //Windows workaround
+#[cfg(target_os = "windows")]
 fn windows_user_folder_fonts() -> Option<PathBuf> {
-    return env::var_os("userprofile")
+    return std::env::var_os("userprofile")
         .and_then(|u| if u.is_empty() { None } else {
             let f = PathBuf::from(u).join("AppData\\Local\\Microsoft\\Windows\\Fonts");
             if !f.is_dir() { None } else { Some(f) }
