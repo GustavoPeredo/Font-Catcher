@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::env::{self, args};
 use std::fs::{self, create_dir_all, File};
-use std::io::Write;
+use std::io::{Result, Write};
+use std::process;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::MetadataExt;
@@ -135,7 +136,7 @@ fn get_local_fonts() -> HashMap<String, Vec<FontFile>> {
 fn get_populated_repos(
     repos: &Vec<repo::Repository>,
     repos_dir: &PathBuf
-) -> HashMap<String, repo::FontsList> {
+) -> Result<HashMap<String, repo::FontsList>> {
     let mut populated_repos: HashMap<String, repo::FontsList> = HashMap::new();
 
     for repo in repos{
@@ -143,17 +144,14 @@ fn get_populated_repos(
         if repo_path.exists() {
             populated_repos.insert(
                 repo.name.clone(),
-                serde_json::from_str(
-                    &fs::read_to_string(&repo_path).expect("Couldn't find
-                        specifiedrepository"),
-                ).expect("Repository file bad formatted")
+                serde_json::from_str(&fs::read_to_string(&repo_path)?)?
             );
         }
     }
-    populated_repos
+    Ok(populated_repos)
 }
 
-fn download_file(output_file: &PathBuf, url: &str) -> std::io::Result<()> {
+fn download_file(output_file: &PathBuf, url: &str) -> Result<()> {
     create_dir_all(output_file.parent().unwrap()).expect("Couldn't create direcotires!");
     println!(
         "Downloading to {} from {}...",
@@ -165,8 +163,11 @@ fn download_file(output_file: &PathBuf, url: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn update_repos(repos: &Vec<repo::Repository>, repos_dir: &PathBuf) {
-    create_dir_all(repos_dir).expect("Couldn't create direcotires!");
+pub fn update_repos(
+    repos: &Vec<repo::Repository>,
+    repos_dir: &PathBuf
+) -> Result<()> {
+    create_dir_all(repos_dir)?;
     for repo in repos.iter() {
         println!("Updating {}...", &repo.name);
         fs::write(
@@ -175,9 +176,9 @@ pub fn update_repos(repos: &Vec<repo::Repository>, repos_dir: &PathBuf) {
                 Some(key) => get_repo_json(&repo.url.replace("{API_KEY}", &key)),
                 _ => get_repo_json(&repo.url),
             },
-        )
-        .expect("Unable to write repo files");
+        )?;
     }
+    Ok(())
 }
 
 pub fn search_fonts (
@@ -204,7 +205,7 @@ pub fn download_fonts(
     repos: &HashMap<String, repo::FontsList>,
     download_dir: &PathBuf,
     selected_fonts: Vec<String>,
-) {
+) -> Result<()> {
     for (_repo_name, repo_fontlist) in repos.iter() {
         for selected_font in selected_fonts.iter() {
             for font in repo_fontlist.items.iter() {
@@ -213,8 +214,7 @@ pub fn download_fonts(
                         let extension: &str = url
                             .split(".")
                             .collect::<Vec<&str>>()
-                            .last()
-                            .expect("File extension not found!");
+                            .last().unwrap();
                         println!(
                             "Downloading {} from {}",
                             &format!(
@@ -232,17 +232,14 @@ pub fn download_fonts(
                                 &extension)
                             ),
                             &url,
-                        ).expect(&format!(
-                                "Failed to download font {} {}",
-                                font.family,
-                                &variant)
-                        );
+                        )?;
                     }
                     break;
                 }
             }
         }
     }
+    Ok(())
 } 
 
 pub fn load_font(
@@ -253,7 +250,10 @@ pub fn load_font(
     for (_repo_name, repo_fontlist) in repos.iter() {
         for font in repo_fontlist.items.iter() {
             if font.family.eq_ignore_ascii_case(&selected_font) {
-                bytes = download(font.files.values().collect::<Vec<&String>>().first().expect("Yield no results"));
+                bytes = download(
+                    font.files.values().collect::<Vec<&String>>()
+                        .first().unwrap()
+                );
                 break;
             }
         }
@@ -261,18 +261,19 @@ pub fn load_font(
     bytes
 }
 
-pub fn remove_fonts(font_names: Vec<String>) {
+pub fn remove_fonts(font_names: Vec<String>) -> Result<()> {
     let local_fonts = get_local_fonts();
     for (family_name, font_list) in &local_fonts {
         for search_name in &font_names {
             if search_name.eq_ignore_ascii_case(&family_name) {
                 for font in font_list {
                     println!("Removing {}...", &font.path.display());
-                    fs::remove_file(&font.path).expect("Unable to remove file");
+                    fs::remove_file(&font.path)?;
                 }
             }
         }
     }
+    Ok(())
 }
 
 pub fn list_fonts(repos: &HashMap<String, repo::FontsList>) -> Vec<String> {
@@ -327,7 +328,7 @@ fn print_version() {
                     println!("{}", env!("CARGO_PKG_DESCRIPTION"));
 }
 
-fn main() {
+fn run() -> Result<()> {
     let font_catcher_dir = get_share_dir();
 
     let repos_dir = font_catcher_dir.join("repos");
@@ -357,10 +358,15 @@ fn main() {
         }
     }
 
-    let populated_repos: HashMap<String, repo::FontsList> = get_populated_repos(
-        &repos,
-        &repos_dir
-    );
+    let populated_repos: HashMap<String, repo::FontsList> = 
+        match get_populated_repos(&repos, &repos_dir) {
+            Ok(r) => r,
+            Err(err) => {
+                println!("error: {}", err);
+                println!("continuing without repos");
+                HashMap::new()
+            }
+        };
     
     if args.len() < 2 {
         print_version();
@@ -372,15 +378,15 @@ fn main() {
                     break;
                 },
                 "update-repos" => {
-                    update_repos(&repos, &repos_dir);
+                    update_repos(&repos, &repos_dir)?; 
                     break;
                 },
                 "install" => {
-                    download_fonts(&populated_repos, &install_dir, args[i..].to_vec());
+                    download_fonts(&populated_repos, &install_dir, args[i..].to_vec())?;
                     break;
                 },
                 "download" => {
-                    download_fonts(&populated_repos, &PathBuf::from(&args[i+1]), args[i+1..].to_vec());
+                    download_fonts(&populated_repos, &PathBuf::from(&args[i+1]), args[i+1..].to_vec())?;
                     break;
                 },
                 "search" => {
@@ -388,14 +394,14 @@ fn main() {
                     break;
                 },
                 "remove" => {
-                    remove_fonts(args[i..].to_vec());
+                    remove_fonts(args[i..].to_vec())?;
                     break;
                 },
                 "update-check" => {
                     check_for_font_updates(&populated_repos);
                 },
                 "update" => {
-                    download_fonts(&populated_repos, &install_dir ,check_for_font_updates(&populated_repos));
+                    download_fonts(&populated_repos, &install_dir, check_for_font_updates(&populated_repos))?;
                 },
                 _ => {
                     println!("{} is not a valid operation, skipping...", args[i]);
@@ -403,30 +409,18 @@ fn main() {
             }
         }
     }
-    /*
-    Update repo files
+    Ok(())
+}
 
-    update_repos(default_repos, &repos_dir);
-    update_repos(local_repos, &repos_dir);
-
-    Search for fonts
-    search_fonts(&repos_dir, None, "Agave");
-
-    Download / Install fonts
-    download_fonts(&repos_dir, &install_dir, None, vec!["Agave"]);
-    download_fonts(
-        &repos_dir,
-        &install_dir,
-        None,
-        vec!["Roboto", "Hack", "ABeeZee"],
-    );
-
-    Remove fonts
-    remove_fonts(&install_dir, vec!["ABeeZee", "Lmao"]);
-
-    Create repo file from default repositories
-
-    let repos_str = toml::to_string(&repos).unwrap();
-    fs::write(config_file, repos_str).expect("Unable to write file");
-    */
+fn main() {
+    let result = run();
+    match result {
+        Ok(()) => {
+            process::exit(0);
+        }
+        Err(err) => {
+            eprintln!("error: {:#}", err);
+            process::exit(1);
+        }
+    }
 }
