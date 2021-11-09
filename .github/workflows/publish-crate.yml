@@ -28,7 +28,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ debian windows-latest macos-latest ]
+        os: [ debian macos ]
     env:
       GOOGLE_FONTS_KEY: ${{ secrets.FONTS_API_KEY }}
     steps:
@@ -58,7 +58,5 @@ jobs:
           files: |
             ./font-catcher-linux
             ./font-catcher-linux-with-google-repo
-            ./font-catcher-windows.exe
-            ./font-catcher-windows-with-google-repo.exe
             ./font-catcher-macos
             ./font-catcher-macos-with-google-repo
