@@ -28,7 +28,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ self-hosted ]
+        os: [ macos ]
     env:
       GOOGLE_FONTS_KEY: ${{ secrets.FONTS_API_KEY }}
     steps:
@@ -56,7 +56,5 @@ jobs:
           generate_release_notes: true
           token: ${{ secrets.ACCOUNT_CODE }}
           files: |
-            ./font-catcher-linux
-            ./font-catcher-linux-with-google-repo
             ./font-catcher-macos
             ./font-catcher-macos-with-google-repo
