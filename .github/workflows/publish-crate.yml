@@ -22,4 +22,4 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: Publish
-        run: cargo publish
+        run: cargo login  ${{ secrets.CARGO_TOKEN }} && cargo publish
