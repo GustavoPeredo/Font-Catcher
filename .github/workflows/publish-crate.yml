@@ -6,7 +6,8 @@ name: publish-crate
 on:
   # Triggers the workflow on push or pull request events but only for the main branch
   push:
-    branches: [ release ]
+    tags:
+      - v*.*.*
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -28,7 +29,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos ]
+        os: ['ubuntu-latest', 'macos-latest', 'windows-latest']
     env:
       GOOGLE_FONTS_KEY: ${{ secrets.FONTS_API_KEY }}
     steps:
@@ -50,11 +51,19 @@ jobs:
               mv ./target/release/font-catcher ./font-catcher-macos
               cargo build --release --features google_repo
               mv ./target/release/font-catcher ./font-catcher-macos-with-google-repo
+          fi
+        shell: bash
+        
       - name: GH Release
-        uses: softprops/action-gh-release@v0.1.13
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
         with:
           generate_release_notes: true
           token: ${{ secrets.ACCOUNT_CODE }}
           files: |
             ./font-catcher-macos
             ./font-catcher-macos-with-google-repo
+            ./font-catcher-linux
+            ./font-catcher-linux-with-google-repo
+            ./font-catcher-windows
+            ./font-catcher-windows-with-google-repo
