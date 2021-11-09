@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::env::args;
+use std::env::{self, args};
 use std::fs::{self, create_dir_all, File};
 use std::io::Write;
 
@@ -10,7 +10,21 @@ use std::path::PathBuf;
 use std::str;
 use std::time;
 
-use dirs::{data_dir, font_dir};
+use dirs::data_dir;
+
+#[cfg(unix)]
+use dirs::font_dir;
+
+//Windows workaround
+fn windows_user_folder_fonts() -> Option<PathBuf> {
+    return env::var_os("userprofile")
+        .and_then(|u| if u.is_empty() { None } else {
+            let f = PathBuf::from(u).join("AppData\\Local\\Microsoft\\Windows\\Fonts");
+            if !f.is_dir() { None } else { Some(f) }
+        })
+}
+#[cfg(target_os = "windows")]
+use self::windows_user_folder_fonts as font_dir;
 
 use font_kit::handle::Handle;
 use font_kit::source::SystemSource;
@@ -166,21 +180,24 @@ pub fn update_repos(repos: &Vec<repo::Repository>, repos_dir: &PathBuf) {
     }
 }
 
-pub fn search_fonts(
+pub fn search_fonts (
     repos: &HashMap<String, repo::FontsList>,
     search_string: &str
-) {
+) -> Vec<String>  {
+    let mut results = Vec::new();
     for (repo_name, fonts_list) in repos.iter() {
         for font in fonts_list.items.iter() {
             if font.family.to_lowercase().contains(&search_string.to_lowercase()) {
                 println!("{}/{}", repo_name, font.family);
                 println!("Variants:");
+                results.push(font.family.clone());
                 for variant in font.variants.iter() {
                     println!("  {}", variant);
                 }
             }
         }
     }
+    results
 }
 
 pub fn download_fonts(
@@ -258,6 +275,17 @@ pub fn remove_fonts(font_names: Vec<String>) {
     }
 }
 
+pub fn list_fonts(repos: &HashMap<String, repo::FontsList>) -> Vec<String> {
+    let mut results: Vec<String> = Vec::new();
+    for (_repo_name, fonts) in repos.iter() {
+        for font in fonts.items.iter() {
+            println!("{}", font.family);
+            results.push(font.family.clone());
+        }
+    }
+    results
+}
+
 pub fn check_for_font_updates(repos: &HashMap<String, repo::FontsList>) -> Vec<String> {
     let mut results: HashMap<String, DateTime<Utc>> = HashMap::new();
     for (local_family_name, local_fonts) in get_local_fonts() {
@@ -303,7 +331,7 @@ fn main() {
     let font_catcher_dir = get_share_dir();
 
     let repos_dir = font_catcher_dir.join("repos");
-    let install_dir = font_dir().unwrap();
+    let install_dir = font_dir().expect("Couldn't find font directory");
 
     let repos_file = font_catcher_dir.join("repos.conf");
 
