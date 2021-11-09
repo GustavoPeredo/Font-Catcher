@@ -46,7 +46,7 @@ struct FontFile {
     creation_date: time::SystemTime,
 }
 
-fn get_share_dir() -> PathBuf {
+fn get_share_dir() -> Result<PathBuf> {
     let mut share = match data_dir() {
         Some(p) => p,
         _ => {
@@ -55,16 +55,23 @@ fn get_share_dir() -> PathBuf {
         }
     };
     share.push("font-catcher");
-    create_dir_all(&share).expect("Couldn't create dir!");
-    share
+    create_dir_all(&share)?;
+    Ok(share)
 }
 
-fn get_local_repos(repo_file: &PathBuf) -> Vec<repo::Repository> {
-    let repositories: repo::Repositories = toml::from_str(
-        &fs::read_to_string(repo_file)
-            .expect("Unable to read repositories file")
-    ).expect("Failed to read repositories file");
-    repositories.repo
+fn get_local_repos(repo_file: &PathBuf) -> Result<Vec<repo::Repository>> {
+    let repositories: repo::Repositories = 
+        match toml::from_str(&fs::read_to_string(repo_file)?) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("error: {:#}", e);
+                println!("Skipping reading from local repositories");
+                repo::Repositories {
+                    repo: Vec::<repo::Repository>::new()
+                }
+            }
+    };
+    Ok(repositories.repo)
 }
 
 fn get_repo_json(url: &str) -> String {
@@ -327,7 +334,7 @@ fn print_version() {
 }
 
 fn run() -> Result<()> {
-    let font_catcher_dir = get_share_dir();
+    let font_catcher_dir = get_share_dir()?;
 
     let repos_dir = font_catcher_dir.join("repos");
     let install_dir = font_dir().expect("Couldn't find font directory");
@@ -336,7 +343,14 @@ fn run() -> Result<()> {
 
     let mut repos: Vec<repo::Repository> = vec![
         repo::get_default_repos(),
-        get_local_repos(&repos_file)
+        match get_local_repos(&repos_file) {
+            Ok(l) => l,
+            Err(e) => {
+                eprintln!("error: {:#}", e);
+                println!("Skipping local repositories...");
+                Vec::<repo::Repository>::new()
+            }
+        }
     ].into_iter().flatten().collect();
     
     let args: Vec<String> = args().collect();
