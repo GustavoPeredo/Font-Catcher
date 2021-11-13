@@ -104,6 +104,18 @@ fn download(url: &str) -> Vec<u8> {
     file
 }
 
+fn download_file(output_file: &PathBuf, url: &str) -> Result<()> {
+    create_dir_all(output_file.parent().unwrap())?;
+    println!(
+        "Downloading to {} from {}...",
+        output_file.as_os_str().to_str().unwrap(),
+        url
+    );
+    let mut file = File::create(output_file)?;
+    file.write_all(download(url).as_slice())?;
+    Ok(())
+}
+
 pub fn get_default_repos() -> Vec<Repository> {
     vec![
         #[cfg(feature = "google_repo")]
@@ -267,11 +279,33 @@ impl Font {
     pub fn is_font_installed(&self) -> bool {
         if self.local_font.len() > 0 { true } else { false }
     }
-    
-    pub fn is_font_in_repo(&self,repo: &str) -> bool {
+
+    pub fn is_font_system_installed(&self) -> bool {
+        match &self.local_font.get(&Location::System) {
+            Some(_) => true,
+            None => false,
+        }
+    }
+
+    pub fn is_font_user_installed(&self) -> bool {
+        match &self.local_font.get(&Location::User) {
+            Some(_) => true,
+            None => false,
+        }
+    }
+
+    pub fn is_font_in_repo(&self, repo: &str) -> bool {
         match &self.repo_font.get(repo) {
             Some(_repo_font) => true,
             None => false
+        }
+    }
+
+    pub fn get_repos_availability(&self) -> Option<Vec<String>> {
+        if self.repo_font.len() > 0 {
+            Some(self.repo_font.keys().cloned().collect())
+        } else {
+            None
         }
     }
 
@@ -355,6 +389,27 @@ impl Font {
         }
     }
 
+
+    pub fn get_font_family_system(&self) -> Option<String> {
+        match &self.local_font.get(&Location::System) {                          
+            Some(local_font) => Some(local_font.family.clone()),
+            None => None                                                       
+        }
+    }
+    pub fn get_font_family_user(&self) -> Option<String> {
+        match &self.local_font.get(&Location::User) {                          
+            Some(local_font) => Some(local_font.family.clone()),
+            None => None                                                       
+        }
+    }
+
+    pub fn get_repo_family(&self, repo: &str) -> Option<String> {
+        match &self.repo_font.get(repo) {
+            Some(repo_font) => Some(repo_font.family.clone()),
+            None => None
+        }
+    }
+
     pub fn get_repo_subsets(&self, repo: &str) -> Option<Vec<String>> {
         match &self.repo_font.get(repo) {
             Some(repo_font) => {
@@ -402,6 +457,149 @@ impl Font {
             None => None
         }
     }
+
+    pub fn is_update_available_in_repos_user(&self) -> Option<Vec<String>> {
+        let mut result: Vec<String> = Vec::new();
+        let local_last_modified = &self.get_local_user_last_modified()?;
+        match &self.get_repos_availability() {
+            Some(repos) => {
+                for repo in repos.iter() {
+                    match &self.get_repo_last_modified(repo) {
+                        Some(repo_last_modified) => {
+                            if repo_last_modified > local_last_modified{
+                                result.push(repo.to_string());
+                            }
+                        },
+                        None => {}
+                    }
+                }
+            },
+            None => {}
+        }
+        if result.len() > 0 {
+            Some(result)
+        } else {
+            None
+        }
+    }
+
+    pub fn is_update_available_in_repos_system(&self) -> Option<Vec<String>> {
+        let mut result: Vec<String> = Vec::new();
+        let local_last_modified = &self.get_local_system_last_modified()?;
+        match &self.get_repos_availability() {
+            Some(repos) => {
+                for repo in repos.iter() {
+                    match &self.get_repo_last_modified(repo) {
+                        Some(repo_last_modified) => {
+                            if repo_last_modified > local_last_modified{
+                                result.push(repo.to_string());
+                            }
+                        },
+                        None => {}
+                    }
+                }
+            },
+            None => {}
+        }
+        if result.len() > 0 {
+            Some(result)
+        } else {
+            None
+        }
+    }
+
+    pub fn uninstall_from_user(&mut self, output: bool) -> Result<()> {
+        match self.get_local_user_files() {
+            Some(files) => {
+                for (_name, file) in files {
+                    if output {
+                        println!("Removing {}...", &file.display());
+                    }
+                    fs::remove_file(&file)?;
+                }
+            },
+            None => {},
+        }
+        self.local_font.remove(&Location::User);
+        Ok(())
+    }
+
+    pub fn uninstall_from_system(&mut self, output: bool) -> Result<()> {
+        match self.get_local_system_files() {
+            Some(files) => {
+                for (_name, file) in files {
+                    if output {
+                        println!("Removing {}...", &file.display());
+                    }
+                    fs::remove_file(&file)?;
+                }
+            },
+            None => {},
+        }
+        self.local_font.remove(&Location::System);
+        Ok(())
+    }
+
+    pub fn download(&self, repo: &str, download_path: &PathBuf, output: bool) -> Result<()> {
+        match self.get_repo_files(repo) {
+            Some(files) => {
+                for (variant, file) in files {
+                    let extension: &str = file
+                            .split(".")
+                            .collect::<Vec<&str>>()
+                            .last().unwrap();
+                        
+                        
+                    if output {
+                        println!(
+                            "Downloading {} from {}",
+                            &format!(
+                                "{}-{}.{}",
+                                &self.get_repo_family(repo).unwrap(),
+                                &variant,
+                                &extension),
+                            &file);
+                    }
+                    download_file(
+                            &download_path.join(&format!(
+                                "{}-{}.{}",
+                                &self.get_repo_family(repo).unwrap(),
+                                &variant,
+                                &extension)
+                            ),
+                            &file,
+                        )?;
+                }
+            },
+            None => {},
+        }
+        Ok(())
+    }
+
+    pub fn install_to_user(&mut self, repo: &str, output: bool) -> Result<()> {
+        let install_dir = font_dir().unwrap();
+        self.download(repo, &install_dir, output)?;
+        self.local_font.insert(Location::User,
+            LocalFont {
+                family: self.get_repo_family(repo).unwrap().clone(),
+                variants: self.get_repo_variants(repo).unwrap().clone(),
+                files: self.get_repo_files(repo).unwrap().iter().map(|(variant, url)| {
+                    let extension: &str = url 
+                        .split(".")
+                        .collect::<Vec<&str>>()
+                        .last().unwrap();
+                    return (variant.clone(), install_dir.join(&format!(
+                        "{}-{}.{}",
+                        &self.get_repo_family(repo).unwrap(),
+                        &variant,
+                        &extension)
+                    ));
+                }).clone().collect(),
+                lastModified: SystemTime::now(),
+                system: false
+            });
+        Ok(())
+    }   
 }
 
 /*#[cfg(test)]
