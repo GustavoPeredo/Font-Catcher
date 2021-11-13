@@ -38,7 +38,6 @@ use toml;
 
 mod repo;
 
-#[derive(Debug)]
 struct FontFile {
     variant: String,
     path: PathBuf,
@@ -106,7 +105,7 @@ fn download(url: &str) -> Vec<u8> {
     file
 }
 
-fn get_local_fonts() -> HashMap<String, Vec<FontFile>> {
+fn get_local_fonts() -> Result<HashMap<String, Vec<FontFile>>> {
     let mut results: HashMap<String, Vec<FontFile>> = HashMap::new();
 
     let source = SystemSource::new();
@@ -120,14 +119,13 @@ fn get_local_fonts() -> HashMap<String, Vec<FontFile>> {
                     font_index: _,
                 } = font
                 {
-                    let metadata = fs::metadata(&path)
-                        .expect("Unable to read metadata!");
+                    let metadata = fs::metadata(&path)?;
                     let counter = results.entry(font_info.family_name())
                         .or_insert(Vec::new());
                     counter.push(FontFile {
                         variant: font_info.full_name(),
                         path: path.clone(),
-                        system: true,
+                        system: metadata.permissions().readonly(),
                         creation_date: metadata.modified().unwrap()
                     });
                 }
@@ -135,21 +133,21 @@ fn get_local_fonts() -> HashMap<String, Vec<FontFile>> {
             Err(_) => {}
         }
     }
-    results
+    Ok(results)
 }
 
 fn get_populated_repos(
     repos: &Vec<repo::Repository>,
     repos_dir: &PathBuf
-) -> Result<HashMap<String, repo::FontsList>> {
-    let mut populated_repos: HashMap<String, repo::FontsList> = HashMap::new();
+) -> Result<HashMap<String, Vec<repo::RepoFont>>> {
+    let mut populated_repos: HashMap<String, Vec<repo::RepoFont>> = HashMap::new();
 
     for repo in repos{
         let repo_path = repos_dir.join(get_repo_as_file(&repo.name));
         if repo_path.exists() {
             populated_repos.insert(
                 repo.name.clone(),
-                serde_json::from_str(&fs::read_to_string(&repo_path)?)?
+                serde_json::from_str::<repo::FontsList>(&fs::read_to_string(&repo_path)?)?.items
             );
         }
     }
@@ -187,33 +185,48 @@ pub fn update_repos(
 }
 
 pub fn search_fonts (
-    repos: &HashMap<String, repo::FontsList>,
-    search_string: &str
-) -> Vec<String>  {
-    let mut results = Vec::new();
-    for (repo_name, fonts_list) in repos.iter() {
-        for font in fonts_list.items.iter() {
-            if font.family.to_lowercase().contains(&search_string.to_lowercase()) {
-                println!("{}/{}", repo_name, font.family);
-                println!("Variants:");
-                results.push(font.family.clone());
-                for variant in font.variants.iter() {
-                    println!("  {}", variant);
+    repos: &HashMap<String, Vec<repo::RepoFont>>,
+    search_string: &str,
+    show_installed: bool
+) -> Result<HashMap<String, Vec<repo::RepoFont>>> {
+    let local_fonts = get_local_fonts()?;
+    let mut results: HashMap<String, Vec<repo::RepoFont>> = HashMap::new();
+    let mut printable_results = String::new();
+    for (repo_name, repo_fonts) in repos.iter() {
+        for repo_font in repo_fonts.iter() {
+            if repo_font.family.to_lowercase().contains(&search_string.to_lowercase()) {
+                printable_results = printable_results + repo_name + "/" + &repo_font.family;
+                let counter = results.entry(repo_name.to_string())
+                        .or_insert(Vec::new());
+                counter.push(repo_font.clone());
+                if show_installed {
+                    for (local_family_name, local_font) in &local_fonts {
+                        if local_family_name.eq_ignore_ascii_case(&repo_font.family) {
+                            printable_results = printable_results + " [installed";
+                            if local_font[0].system {
+                                printable_results = printable_results + "/system";
+                            }
+                            printable_results = printable_results + "]";
+                            break;
+                        }
+                    }
                 }
+                printable_results = printable_results + "\n"
             }
         }
     }
-    results
+    println!("{}", printable_results);
+    Ok(results)
 }
 
 pub fn download_fonts(
-    repos: &HashMap<String, repo::FontsList>,
+    repos: &HashMap<String, Vec<repo::RepoFont>>,
     download_dir: &PathBuf,
     selected_fonts: Vec<String>,
 ) -> Result<()> {
     for (_repo_name, repo_fontlist) in repos.iter() {
         for selected_font in selected_fonts.iter() {
-            for font in repo_fontlist.items.iter() {
+            for font in repo_fontlist.iter() {
                 if font.family.eq_ignore_ascii_case(&selected_font) {
                     for (variant, url) in font.files.iter() {  
                         let extension: &str = url
@@ -248,12 +261,12 @@ pub fn download_fonts(
 } 
 
 pub fn load_font(
-    repos: &HashMap<String, repo::FontsList>,
+    repos: &HashMap<String, Vec<repo::RepoFont>>,
     selected_font: String,
 ) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
     for (_repo_name, repo_fontlist) in repos.iter() {
-        for font in repo_fontlist.items.iter() {
+        for font in repo_fontlist.iter() {
             if font.family.eq_ignore_ascii_case(&selected_font) {
                 bytes = download(
                     font.files.values().collect::<Vec<&String>>()
@@ -267,7 +280,7 @@ pub fn load_font(
 }
 
 pub fn remove_fonts(font_names: Vec<String>) -> Result<()> {
-    let local_fonts = get_local_fonts();
+    let local_fonts = get_local_fonts()?;
     for (family_name, font_list) in &local_fonts {
         for search_name in &font_names {
             if search_name.eq_ignore_ascii_case(&family_name) {
@@ -281,23 +294,42 @@ pub fn remove_fonts(font_names: Vec<String>) -> Result<()> {
     Ok(())
 }
 
-pub fn list_fonts(repos: &HashMap<String, repo::FontsList>) -> Vec<String> {
-    let mut results: Vec<String> = Vec::new();
-    for (_repo_name, fonts) in repos.iter() {
-        for font in fonts.items.iter() {
-            println!("{}", font.family);
-            results.push(font.family.clone());
+pub fn list_fonts(
+    repos: &HashMap<String,
+    Vec<repo::RepoFont>>,
+    show_installed: bool
+) -> Result<()> {
+    let mut printable_results = String::new();
+    let local_fonts = get_local_fonts()?;
+    
+    for (repo_name, repo_fonts) in repos.iter() {
+        for repo_font in repo_fonts.iter() {
+            printable_results = printable_results + repo_name + "/" + &repo_font.family;
+            if show_installed {
+                for (local_family_name, local_font) in &local_fonts {
+                    if local_family_name.eq_ignore_ascii_case(&repo_font.family) {
+                        printable_results = printable_results + " [installed";
+                        if local_font[0].system {
+                            printable_results = printable_results + "/system";
+                        }
+                        printable_results = printable_results + "]";
+                        break;
+                    }
+                }
+            }
+            printable_results = printable_results + "\n"
         }
     }
-    results
+    println!("{}", printable_results);
+    Ok(())
 }
 
-pub fn check_for_font_updates(repos: &HashMap<String, repo::FontsList>) -> Vec<String> {
+pub fn check_for_font_updates(repos: &HashMap<String, Vec<repo::RepoFont>>) -> Result<Vec<String>> {
     let mut results: HashMap<String, DateTime<Utc>> = HashMap::new();
-    for (local_family_name, local_fonts) in get_local_fonts() {
+    for (local_family_name, local_fonts) in get_local_fonts()? {
         let local_date: DateTime<Utc> = local_fonts.first().unwrap().creation_date.into();
-        for (repo_name, repo_fonts) in repos.iter() {
-            for repo_font in repo_fonts.items.iter() {
+        for (_repo_name, repo_fonts) in repos.iter() {
+            for repo_font in repo_fonts.iter() {
                 if local_family_name == repo_font.family {
                     match &repo_font.lastModified {
                         Some(text_date) => {
@@ -317,7 +349,7 @@ pub fn check_for_font_updates(repos: &HashMap<String, repo::FontsList>) -> Vec<S
     for key in results.keys() {
         println!("{}", key);
     }
-    results.keys().cloned().collect()
+    Ok(results.keys().cloned().collect())
 }
 
 fn print_version() {
@@ -370,7 +402,7 @@ fn run() -> Result<()> {
         }
     }
 
-    let populated_repos: HashMap<String, repo::FontsList> = 
+    let populated_repos: HashMap<String, Vec<repo::RepoFont>> = 
         match get_populated_repos(&repos, &repos_dir) {
             Ok(r) => r,
             Err(err) => {
@@ -402,7 +434,7 @@ fn run() -> Result<()> {
                     break;
                 },
                 "search" => {
-                    search_fonts(&populated_repos, &args[i+1]);
+                    search_fonts(&populated_repos, &args[i+1], true)?;
                     break;
                 },
                 "remove" => {
@@ -410,13 +442,13 @@ fn run() -> Result<()> {
                     break;
                 },
                 "update-check" => {
-                    check_for_font_updates(&populated_repos);
+                    check_for_font_updates(&populated_repos)?;
                 },
                 "update" => {
-                    download_fonts(&populated_repos, &install_dir, check_for_font_updates(&populated_repos))?;
+                    download_fonts(&populated_repos, &install_dir, check_for_font_updates(&populated_repos)?)?;
                 },
                 "list" => {
-                    list_fonts(&populated_repos);
+                    list_fonts(&populated_repos, true)?;
                 }
                 _ => {
                     println!("{} is not a valid operation, skipping...", args[i]);

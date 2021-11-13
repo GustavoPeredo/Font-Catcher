@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct Font {
+pub struct RepoFont {
     pub kind: Option<String>,
     pub family: String,
     pub variants: Vec<String>,
@@ -12,12 +12,13 @@ pub struct Font {
     pub lastModified: Option<String>,
     pub files: HashMap<String, String>,
     pub commentary: Option<String>,
+    pub creator: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct FontsList {
     pub kind: String,
-    pub items: Vec<Font>,
+    pub items: Vec<RepoFont>,
 }
 
 #[derive(Serialize, Deserialize)]
