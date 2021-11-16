@@ -1,12 +1,9 @@
 use std::collections::HashMap;
 use std::fs::{self, create_dir_all, File};
-use std::io::{Result, Write};
-use std::process;
+use std::io::{Result, Error, ErrorKind, Write};
 use std::path::PathBuf;
 use std::str;
 use std::time::SystemTime;
-
-use dirs::data_dir;
 
 #[cfg(unix)]
 use dirs::font_dir;
@@ -53,7 +50,7 @@ pub struct Repositories {
     pub repo: Vec<Repository>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RepoFont {
     kind: Option<String>,
     family: String,
@@ -66,7 +63,7 @@ pub struct RepoFont {
     creator: Option<String>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LocalFont{
     family: String,
     variants: Vec<String>,
@@ -75,12 +72,13 @@ pub struct LocalFont{
     system: bool
 }
 
-#[derive(Eq, PartialEq, Hash)]
+#[derive(Eq, PartialEq, Hash, Debug, Clone)]
 pub enum Location {
     User,
     System,
 }
 
+#[derive(Debug, Clone)]
 pub struct Font{
     repo_font: HashMap<String, RepoFont>,
     local_font: HashMap<Location, LocalFont>,
@@ -177,6 +175,16 @@ pub fn generate_repo_font_list_from_url(
             Err(_) => ""
         }
     )?)
+}
+
+pub fn init() -> Result<HashMap<String, Font>> {
+    let local_fonts = generate_local_fonts(None)?;
+    let default_repos = get_default_repos();
+    let repo_fonts: HashMap<String, Vec<RepoFont>> = default_repos.iter().map(
+        |repo| {
+            (repo.name.clone(), generate_repo_font_list_from_url(&repo.url).unwrap())
+        }).collect::<HashMap<String, Vec<RepoFont>>>();
+    Ok(generate_fonts_list(repo_fonts, local_fonts))
 }
 
 // Hopefully there is a better way to do this in the future
@@ -508,7 +516,15 @@ impl Font {
         }
     }
 
-    pub fn uninstall_from_user(&mut self, output: bool) -> Result<()> {
+    pub fn get_first_available_repo(&self) -> Option<String> {
+        let repos = &self.get_repos_availability();
+        match repos {
+            Some(repos) => Some(repos.first().unwrap().to_string()),
+            None => None
+        }
+    }
+
+    pub fn uninstall_from_user(&self, output: bool) -> Result<Font> {
         match self.get_local_user_files() {
             Some(files) => {
                 for (_name, file) in files {
@@ -520,11 +536,12 @@ impl Font {
             },
             None => {},
         }
-        self.local_font.remove(&Location::User);
-        Ok(())
+        let mut new_font = self.clone();
+        new_font.local_font.remove(&Location::User);
+        Ok(new_font)
     }
 
-    pub fn uninstall_from_system(&mut self, output: bool) -> Result<()> {
+    pub fn uninstall_from_system(&self, output: bool) -> Result<Font> {
         match self.get_local_system_files() {
             Some(files) => {
                 for (_name, file) in files {
@@ -536,11 +553,21 @@ impl Font {
             },
             None => {},
         }
-        self.local_font.remove(&Location::System);
-        Ok(())
+        let mut new_font = self.clone();
+        new_font.local_font.remove(&Location::System);
+        Ok(new_font)
     }
 
-    pub fn download(&self, repo: &str, download_path: &PathBuf, output: bool) -> Result<()> {
+    pub fn download(&self, repo: Option<&str>, download_path: &PathBuf, output: bool) -> Result<()> {
+        let repos = &self.get_first_available_repo();
+        let repo = match repo {
+            Some(repo) => repo,
+            None => match repos {
+                Some(repo) => repo,
+                None => ""
+            }
+        };
+
         match self.get_repo_files(repo) {
             Some(files) => {
                 for (variant, file) in files {
@@ -576,21 +603,32 @@ impl Font {
         Ok(())
     }
 
-    pub fn install_to_user(&mut self, repo: &str, output: bool) -> Result<()> {
+    pub fn install_to_user(&self, repo: Option<&str>, output: bool) -> Result<Font> {
+        //Remove this eventually
+        let repos = &self.get_first_available_repo();
+        let repo = match repo {
+            Some(repo) => Some(repo),
+            None => match repos {
+                Some(repo) => Some(repo.as_str()),
+                None => None
+            }
+        };
         let install_dir = font_dir().unwrap();
+
         self.download(repo, &install_dir, output)?;
-        self.local_font.insert(Location::User,
+        let mut new_font = self.clone();
+        new_font.local_font.insert(Location::User,
             LocalFont {
-                family: self.get_repo_family(repo).unwrap().clone(),
-                variants: self.get_repo_variants(repo).unwrap().clone(),
-                files: self.get_repo_files(repo).unwrap().iter().map(|(variant, url)| {
+                family: self.get_repo_family(repo.unwrap()).unwrap().clone(),
+                variants: self.get_repo_variants(repo.unwrap()).unwrap().clone(),
+                files: self.get_repo_files(repo.unwrap()).unwrap().iter().map(|(variant, url)| {
                     let extension: &str = url 
                         .split(".")
                         .collect::<Vec<&str>>()
                         .last().unwrap();
                     return (variant.clone(), install_dir.join(&format!(
                         "{}-{}.{}",
-                        &self.get_repo_family(repo).unwrap(),
+                        &self.get_repo_family(repo.unwrap()).unwrap(),
                         &variant,
                         &extension)
                     ));
@@ -598,15 +636,6 @@ impl Font {
                 lastModified: SystemTime::now(),
                 system: false
             });
-        Ok(())
+        Ok(new_font)
     }   
 }
-
-/*#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
-*/

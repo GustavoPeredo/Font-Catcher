@@ -1,7 +1,14 @@
 use std::env::args;
+use std::collections::HashMap;
+use std::fs::{read_dir};
+use std::process::exit;
+use std::io::Result;
+use std::path::PathBuf;
+
+use dirs::data_dir;
 
 mod lib;
-/*
+
 fn print_version() {
                     println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
                     println!(
@@ -16,27 +23,26 @@ fn print_version() {
 }
 
 fn run() -> Result<()> {
-    let font_catcher_dir = get_share_dir()?;
+    let args: Vec<String> = args().collect();
 
+    /*
+    let font_catcher_dir = data_dir().unwrap().join("font-catcher");
     let repos_dir = font_catcher_dir.join("repos");
-    let install_dir = font_dir().expect("Couldn't find font directory");
-
     let repos_file = font_catcher_dir.join("repos.conf");
 
-    let mut repos: Vec<repo::Repository> = vec![
-        repo::get_default_repos(),
-        match get_local_repos(&repos_file) {
+    let mut repos: Vec<lib::Repository> = vec![
+        lib::get_default_repos(),
+        match lib::generate_repos_from_file(&repos_file) {
             Ok(l) => l,
             Err(e) => {
                 eprintln!("error: {:#}", e);
                 println!("Skipping local repositories...");
-                Vec::<repo::Repository>::new()
+                Vec::<lib::Repository>::new()
             }
         }
     ].into_iter().flatten().collect();
     
-    let args: Vec<String> = args().collect();
-    
+        
     for i in 1..(args.len()) {
         if args[i].len() > 2 && &args[i][..2] == "--" {
             match &args[i][2..] {
@@ -52,16 +58,29 @@ fn run() -> Result<()> {
         }
     }
 
-    let populated_repos: HashMap<String, Vec<repo::RepoFont>> = 
-        match get_populated_repos(&repos, &repos_dir) {
-            Ok(r) => r,
-            Err(err) => {
-                println!("error: {}", err);
-                println!("continuing without repos");
-                HashMap::new()
-            }
-        };
     
+    let repo_fonts_list: HashMap<String, Vec<lib::RepoFont>> = read_dir(&repos_dir)?.map(|file_name| {
+        match &file_name {
+            Ok(file_path) => {
+                match lib::generate_repo_font_list_from_file(&file_path.path()) {
+                    Ok(font_list) => (file_path.file_name().to_str().unwrap().to_string(), font_list),
+                    Err(_) => {
+                        eprintln!("error: while reading {}", file_path.path().display());
+                        (String::new(), Vec::<lib::RepoFont>::new())
+                    },
+                }
+            },
+            Err(e) => {
+                eprintln!("error:  {}", e);
+                (String::new(), Vec::<lib::RepoFont>::new())
+            }
+        }
+    }).collect();
+
+    let mut fonts_list = lib::generate_fonts_list(repo_fonts_list, lib::generate_local_fonts(None).unwrap());
+    */
+    let fonts_list = lib::init()?;
+
     if args.len() < 2 {
         print_version();
     } else {
@@ -72,33 +91,76 @@ fn run() -> Result<()> {
                     break;
                 },
                 "update-repos" => {
-                    update_repos(&repos, &repos_dir)?; 
+                    //update_repos(&repos, &repos_dir)?; 
                     break;
                 },
                 "install" => {
-                    download_fonts(&populated_repos, &install_dir, args[i..].to_vec())?;
+                    for font in args[i + 1..].iter() {
+                        match fonts_list.get(font) {
+                            Some(f) => {
+                                f.install_to_user(None, true)?;
+                            },
+                            None => {
+                                println!("{} not found anywhere!", font);
+                                
+                            }
+                        };
+                    }
                     break;
                 },
                 "download" => {
-                    download_fonts(&populated_repos, &PathBuf::from(&args[i+1]), args[i+1..].to_vec())?;
+                    for font in args[i + 2..].iter() {
+                        match fonts_list.get(font) {
+                            Some(f) => {
+                                f.download(None, &PathBuf::from(args[2].clone()), true)?;
+                            },
+                            None => {
+                                println!("{} not found anywhere!", font);
+                                
+                            }
+                        };
+                    }
                     break;
                 },
                 "search" => {
-                    search_fonts(&populated_repos, &args[i+1], true)?;
+                    for font in args[i + 1..].iter() {
+                        for (name, data) in &fonts_list {
+                            if name.contains(font) {
+                                println!("\n{}:", &name);
+                                println!("  Available on: {}", match data.get_repos_availability() { Some(r) => r.join(" "), None => "".to_string() });
+
+                                println!("  User installed: {}", data.is_font_user_installed());
+                                println!("  System installed: {}", data.is_font_system_installed());
+                            }
+                        }
+                    }
                     break;
                 },
                 "remove" => {
-                    remove_fonts(args[i..].to_vec())?;
+                    for font in args[i + 1..].iter() {
+                        match fonts_list.get(font) {
+                            Some(f) => {
+                                f.uninstall_from_user(true)?;
+                            },
+                            None => {
+                                println!("{} not found anywhere!", font);
+                                
+                            }
+                        };
+                    }
                     break;
                 },
                 "update-check" => {
-                    check_for_font_updates(&populated_repos)?;
+                    break;
+                    //check_for_font_updates(&populated_repos)?;
                 },
                 "update" => {
-                    download_fonts(&populated_repos, &install_dir, check_for_font_updates(&populated_repos)?)?;
+                    //download_fonts(&populated_repos, &install_dir, check_for_font_updates(&populated_repos)?)?;
+                    break;
                 },
                 "list" => {
-                    list_fonts(&populated_repos, true)?;
+                    //list_fonts(&populated_repos, true)?;
+                    break;
                 }
                 _ => {
                     println!("{} is not a valid operation, skipping...", args[i]);
@@ -108,17 +170,16 @@ fn run() -> Result<()> {
     }
     Ok(())
 }
-*/
-fn main() {
 
-    /*let result = run();
+fn main() {
+    let result = run();
     match result {
         Ok(()) => {
-            process::exit(0);
+            exit(0);
         }
         Err(err) => {
             eprintln!("error: {:#}", err);
-            process::exit(1);
+            exit(1);
         }
-    }*/
+    }
 }
