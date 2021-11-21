@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fs::{self, create_dir_all, File};
-use std::io::{Result, Error, ErrorKind, Write};
+use std::io::{Result, Write};
 use std::path::PathBuf;
 use std::str;
 use std::time::SystemTime;

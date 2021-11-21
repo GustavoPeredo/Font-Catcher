@@ -92,8 +92,8 @@ fn run() -> Result<()> {
     for file in read_dir(&repos_dir)? {
         let file = file.unwrap();
         match lib::generate_repo_font_list_from_file(&file.path()) {
-            Ok(FontsList) => {
-                local_repos.insert(file.file_name().into_string().unwrap(), FontsList);
+            Ok(fonts_list) => {
+                local_repos.insert(file.file_name().into_string().unwrap(), fonts_list);
             },
             Err(_) => {
                 eprintln!("Error while reading repo...");
