@@ -1,6 +1,6 @@
 use std::env::args;
 use std::collections::HashMap;
-use std::fs::{read_dir};
+use std::fs::read_dir;
 use std::process::exit;
 use std::io::Result;
 use std::path::PathBuf;
@@ -74,48 +74,33 @@ fn run() -> Result<()> {
     }
     cli.command = clean_args[1].clone();
     cli.fonts = clean_args[2..].to_vec();
-    /*
+    
+    // Get directly from default repos
+    // let fonts_list = lib::init()?;
+
     let font_catcher_dir = data_dir().unwrap().join("font-catcher");
     let repos_dir = font_catcher_dir.join("repos");
     let repos_file = font_catcher_dir.join("repos.conf");
 
-    let mut repos: Vec<lib::Repository> = vec![
-        lib::get_default_repos(),
-        match lib::generate_repos_from_file(&repos_file) {
-            Ok(l) => l,
-            Err(e) => {
-                eprintln!("error: {:#}", e);
-                println!("Skipping local repositories...");
-                Vec::<lib::Repository>::new()
-            }
-        }
-    ].into_iter().flatten().collect();
-    
-        
-    
+    let local_repos_file: Vec<lib::Repository> = lib::generate_repos_from_file(&repos_file)?;
 
-    
-    let repo_fonts_list: HashMap<String, Vec<lib::RepoFont>> = read_dir(&repos_dir)?.map(|file_name| {
-        match &file_name {
-            Ok(file_path) => {
-                match lib::generate_repo_font_list_from_file(&file_path.path()) {
-                    Ok(font_list) => (file_path.file_name().to_str().unwrap().to_string(), font_list),
-                    Err(_) => {
-                        eprintln!("error: while reading {}", file_path.path().display());
-                        (String::new(), Vec::<lib::RepoFont>::new())
-                    },
+    let mut local_repos: HashMap<String, Vec<lib::RepoFont>> = HashMap::new();
+
+    read_dir(&repos_dir)?.map(
+        |file| {
+            let file = file.unwrap();
+            match lib::generate_repo_font_list_from_file(&file.path()) {
+                Ok(FontsList) => {
+                    local_repos.insert(file.file_name().into_string().unwrap(), FontsList);
+                },
+                Err(_) => {
+                    eprintln!("Error while reading repo...");
                 }
-            },
-            Err(e) => {
-                eprintln!("error:  {}", e);
-                (String::new(), Vec::<lib::RepoFont>::new())
             }
         }
-    }).collect();
+    );
 
-    let mut fonts_list = lib::generate_fonts_list(repo_fonts_list, lib::generate_local_fonts(None).unwrap());
-    */
-    let fonts_list = lib::init()?;
+    let mut fonts_list = lib::generate_fonts_list(local_repos, lib::generate_local_fonts(None).unwrap());
 
     match cli.command.as_str() {
         "version" => {
