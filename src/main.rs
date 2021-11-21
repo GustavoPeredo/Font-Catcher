@@ -6,6 +6,7 @@ use std::io::{Result, Write};
 use std::path::PathBuf;
 
 use dirs::data_dir;
+use serde_json::json;
 
 mod lib;
 
@@ -86,8 +87,7 @@ fn run() -> Result<()> {
 
     let mut local_repos: HashMap<String, Vec<lib::RepoFont>> = HashMap::new();
 
-    read_dir(&repos_dir)?.map(
-        |file| {
+    for file in read_dir(&repos_dir)? {
             let file = file.unwrap();
             match lib::generate_repo_font_list_from_file(&file.path()) {
                 Ok(FontsList) => {
@@ -97,10 +97,10 @@ fn run() -> Result<()> {
                     eprintln!("Error while reading repo...");
                 }
             }
-        }
-    );
+    }
 
-    let mut fonts_list = lib::generate_fonts_list(local_repos, lib::generate_local_fonts(None).unwrap());
+
+    let mut fonts_list = lib::generate_fonts_list(local_repos.clone(), lib::generate_local_fonts(None).unwrap());
 
     match cli.command.as_str() {
         "version" => {
@@ -111,14 +111,20 @@ fn run() -> Result<()> {
                 println!("Updating {}...", r.name); 
                 let mut file = File::create(repos_dir.join(r.name.clone() + ".json"))?;
                 file.write_all(
-                    serde_json::to_string(
-                        &lib::generate_repo_font_list_from_url(
+                    serde_json::to_string_pretty(&json!({
+                        "kind": "webfonts#webfontList",
+                        "items": &lib::generate_repo_font_list_from_url(
                             &r.url, r.key.clone()
                         )?
-                    )?.as_bytes()
+                    }))?.as_bytes()
                 )?;
             }
         },
+        "list-repos" => {
+            for r in local_repos.keys() {
+                println!("{}", r);
+            }
+        }
         "install" => {
             for font in cli.fonts.iter() {
                 match fonts_list.get(font) {
