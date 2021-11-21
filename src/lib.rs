@@ -28,8 +28,6 @@ use chrono::offset::Utc;
 
 use curl::easy::Easy;
 
-use faccess::PathExt;
-
 use serde::{Deserialize, Serialize};
 use serde_json;
 use toml;
