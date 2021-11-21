@@ -1,44 +1,36 @@
 # Font Catcher
 
-*A command line font package manager.*
+*A cross-platform command-line utility and a high-level library for user and system font management*
 
-## Installation
+Cool badges :P
 
-### Dependencies
+![main](https://github.com/GustavoPeredo/Font-Catcher/actions/workflows/Rust/badge.svg)
+![publishing](https://github.com/GustavoPeredo/Font-Catcher/actions/workflows/publish-crate/badge.svg)
+![built with nix](https://builtwithnix.org/badge.svg)](https://builtwithnix.org)
+![crate downloads](https://shields.io/crates/d/font-catcher)
 
-Font Catcher relies on `curl` to download fonts, make sure to install it before using Font Catcher.
+## User Quick Start
 
-### Recommended
+### Installation
 
-Download one of the following:
+Head to the [releases](https://github.com/GustavoPeredo/Font-Catcher/releases),
+download your preferred version (latest versions are recommended),
+copy the file to /usr/bin and that's it!
 
-![Standard repo](https://github.com/GustavoPeredo/Font-Catcher/releases/download/v1.0.1/font-catcher.zip)
+NOTE: There are two releases (common and with [Google Fonts](https://fonts.google.com))
+for now it is recommended to download the Google Fonts version to have a broader
+variety of fonts, but this might change in the future, see
+[Open Font Repository](https://github.com/GustavoPeredo/open-font-repository)
 
-![Standard repo + Google Fonts (Recommended)](https://github.com/GustavoPeredo/Font-Catcher/releases/download/v1.0.1/font-catcher.g.zip)
+### Basic Usage
 
-Extract and copy to `/usr/bin`! That's it!
-
-### Using Cargo
-
-To install using the standard repo, run:
-
-```
-cargo install font-catcher
-```
-
-To install with Google Fonts:
-
-1. Grab an API Key on ![Google Font's Website](https://developers.google.com/fonts/docs/developer_api)
-
-2. Run:
-
-```
-GOOGLE_FONTS_KEY="YOUR API KEY HERE" cargo install font-catcher --features google_repo
-```
-
-# Usage
-
-Font Catcher's commands are aimed at being easy and intuitive to use. If you have used `apt` or `dnf` as package managers once, you will notice the similarities. By default, Font Catcher comes with one repository which is currently WIP: ![Open Font Repository](https://github.com/GustavoPeredo/open-font-repository), but it is possible to use Google Fonts as a repository as well (and other repositories).
+Font Catcher's commands are aimed at being easy and intuitive to use. 
+If you have used `apt` or `dnf` as package managers once,
+you will notice the similarities. By default, Font Catcher comes with one
+repository which is currently WIP: 
+![Open Font Repository](https://github.com/GustavoPeredo/open-font-repository),
+but it is possible to use Google Fonts as a repository as well
+(and other repositories).
 
 To search for a font:
 
@@ -59,6 +51,121 @@ font-catcher remove font-name
 ```
 
 That's it! (For the most part)
+
+## Developer Quick Start
+
+### Adding to your project
+
+`font-catcher` makes use of some low-level libraries that may not be installed
+in your system.
+```
+sudo apt install pkg-config libfreetype-dev openssl librust-openssl-dev cmake llvm make expat fontconfig fontconfig1-dev
+```
+
+After installing these, add to your cargo file:
+```
+[dependencies]
+font-catcher = "2.0.0"
+```
+
+### Using the library 
+
+Two things are nescessary to make use of the library: Import it and initialize
+it.
+
+```rust
+use font-catcher as font_catcher;
+
+let main() {
+    let fonts_hashmap = font_catcher::init()?;
+}
+```
+
+This returns a 
+[HashMap](https://doc.rust-lang.org/std/collections/struct.HashMap.html)
+where the keys are font names and the value is a struct with plenty of
+useful functions, in the following example, we will be installing and
+removing the [Agave font](https://github.com/blobject/agave).
+
+```rust
+use font-catcher as font_catcher;
+
+let main() {
+    let fonts_hashmap = font_catcher::init()?;
+
+    match fonts_hashmap.get("Agave") {
+    	// Checks if the font exists
+        Some(font) => {font.install_to_user(None, true)?;},
+	// None -> This means the font will be downloaded from any repo
+	// available.
+	// true -> Gives terminal output of the operation.
+	None => {println!("No Agave font found!");}
+	// Prints a message if the font is not to be found
+    }
+
+    match fonts_hashmap.get("Agave") {
+    	// Checks if the font exists
+        Some(font) => {font.uninstall_from_user(true)?;},
+	// true -> Gives terminal output of the operation.
+	None => {println!("No Agave font found!");}
+	// Prints a message if the font is not to be found
+    }
+}
+```
+
+### Docs
+
+More examples can be found on the [main.rs file](https://github.com/GustavoPeredo/Font-Catcher/blob/main/src/main.rs) for the time being.
+
+## Contributor Quick Start
+
+### Setup with Nix
+
+The first step is to clone the git repository:
+
+```
+git clone https://github.com/GustavoPeredo/Font-Catcher.git
+cd Font-Catcher
+```
+
+Then, [nix](https://nixos.org/) makes it very easy to start
+working on this project. Simply download [nix](https://nixos.org/download.html)
+on any distribution or MacOS and:
+
+```
+nix-shell
+```
+
+*BAM!* All dependencies, rust and neovim with plugins will be installed.
+
+### Compiling
+
+For common hacking
+```
+cargo build
+```
+should be enough, but if you want to compile with Google Fonts repository,
+then you will have to grab a key from 
+![Google Font's Website](https://developers.google.com/fonts/docs/developer_api)
+, then compile enabling the `google_repo` feature:
+
+```
+GOOGLE_FONTS_KEY="YOUR API KEY HERE" cargo build --features google_repo
+```
+
+### Versioning
+
+v1.0.0 -> v2.0.0
+Major releases change the api completely
+
+v1.0.0 -> v1.1.0
+Middle releases add features and may deprecate functions/function outputs
+
+v1.0.0 -> v1.1.1
+Minor releases contian bug fixes and misc updates
+
+
+## Other documentation
 
 ## Further Usage
 
@@ -145,12 +252,3 @@ Repository {
 ```
 
 Maybe there are other font repositories compatible with this software that I'm unaware of, it would be nice to have them as options at compilation time!
-
-# To-improve!
-
-* (D) Develop an update system for fonts
-* (A) Show installed fonts as `[installed]` or `[system installed]`
-* \(C\) Make `Open Font Repository` optional at compile time, but still default.
-* (A) Allow to filter fonts by subsets, categories and lastModified
-* \(C\) Add translations
-* (B) Package to distributions
