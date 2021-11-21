@@ -6,7 +6,7 @@ use std::str;
 use std::time::SystemTime;
 
 #[cfg(unix)]
-use dirs::font_dir;
+use dirs::{font_dir, home_dir};
 
 //Windows workaround
 #[cfg(target_os = "windows")]
@@ -27,6 +27,8 @@ use chrono::{DateTime, NaiveDate};
 use chrono::offset::Utc;
 
 use curl::easy::Easy;
+
+use faccess::PathExt;
 
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -206,7 +208,8 @@ pub fn generate_local_fonts(
                 } = font {
                     match fs::metadata(&path) {
                         Ok(metadata) => {
-                            let is_system = metadata.permissions().readonly();
+                            // Improve this :(
+                            let is_system = !path.clone().into_os_string().into_string().unwrap().contains(&home_dir().unwrap().into_os_string().into_string().unwrap());
                             if is_system {
                                 let counter = sys_results.entry(font_info.family_name()).or_insert(LocalFont {
     family: font_info.full_name(),

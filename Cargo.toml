@@ -20,6 +20,7 @@ serde = { version = "1.0", features = ["derive"] }
 font-kit = "0.10.0"
 chrono = "0.4.16"
 curl = "0.4.40"
+faccess = "0.2.3"
 
 [features]
 google_repo = []

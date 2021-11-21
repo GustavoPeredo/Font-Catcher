@@ -201,6 +201,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "faccess"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e039175679baf763ddddf4f76900b92d4dae9411ee88cf42d2f11b976b09e07c"
+dependencies = [
+ "bitflags",
+ "libc",
+ "winapi",
+]
+
+[[package]]
 name = "float-ord"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -213,6 +224,7 @@ dependencies = [
  "chrono",
  "curl",
  "dirs",
+ "faccess",
  "font-kit",
  "serde",
  "serde_json",

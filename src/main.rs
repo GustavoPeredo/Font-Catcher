@@ -125,7 +125,7 @@ fn run() -> Result<()> {
                 "search" => {
                     for font in args[i + 1..].iter() {
                         for (name, data) in &fonts_list {
-                            if name.contains(font) {
+                            if name.to_lowercase().contains(&font.to_lowercase()) {
                                 println!("\n{}:", &name);
                                 println!("  Available on: {}", match data.get_repos_availability() { Some(r) => r.join(" "), None => "".to_string() });
 
