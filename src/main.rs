@@ -1,8 +1,8 @@
 use std::env::args;
 use std::collections::HashMap;
-use std::fs::read_dir;
+use std::fs::{read_dir, File};
 use std::process::exit;
-use std::io::Result;
+use std::io::{Result, Write};
 use std::path::PathBuf;
 
 use dirs::data_dir;
@@ -107,7 +107,17 @@ fn run() -> Result<()> {
             print_version();
         },
         "update-repos" => {
-            //update_repos(&repos, &repos_dir)?; 
+            for r in local_repos_file.iter() {
+                println!("Updating {}...", r.name); 
+                let mut file = File::create(repos_dir.join(r.name.clone() + ".json"))?;
+                file.write_all(
+                    serde_json::to_string(
+                        &lib::generate_repo_font_list_from_url(
+                            &r.url, r.key.clone()
+                        )?
+                    )?.as_bytes()
+                )?;
+            }
         },
         "install" => {
             for font in cli.fonts.iter() {
