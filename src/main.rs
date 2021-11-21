@@ -43,7 +43,7 @@ fn run() -> Result<()> {
     };
     
     let mut skip: bool = false;
-    if args.len() > 2 {
+    if args.len() > 1 {
         for i in 0..(args.len()) {
             match args[i].as_str() {
                 "--repo" => {
@@ -180,8 +180,29 @@ fn run() -> Result<()> {
                 };
             }
         },
-        "updates" => {
+        "check-for-updates" => {
             for (name, data) in &fonts_list {
+                if cli.location == Some(lib::Location::System) {
+                    match data.get_all_repos_with_update_system() {
+                        Some(repos) => {
+                            println!("Updates for {} available on:", name);
+                            for r in repos.iter() {
+                                println!("  {}", r);
+                            }
+                        },
+                        None => {},
+                    }
+                } else {
+                    match data.get_all_repos_with_update_user() {
+                        Some(repos) => {
+                            println!("Updates for {} available on:", name);
+                            for r in repos.iter() {
+                                println!("  {}", r);
+                            }
+                        },
+                        None => {},
+                    }
+                }
             }
         },
         "update" => {

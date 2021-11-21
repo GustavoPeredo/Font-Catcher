@@ -167,10 +167,15 @@ pub fn generate_repo_font_list_from_file(
 }
 
 pub fn generate_repo_font_list_from_url(
-    repo_url: &str
+    repo_url: &str,
+    key: Option<String>
 ) -> Result<Vec<RepoFont>> {
+    let repo_url = match key {
+        Some(key) => repo_url.replace("{API_KEY}", &key),
+        None => repo_url.to_string()
+    };
     Ok(generate_repo_font_list_from_str(
-        match str::from_utf8(download(repo_url).as_slice()) {
+        match str::from_utf8(download(&repo_url).as_slice()) {
             Ok(s) => s,
             Err(_) => ""
         }
@@ -182,7 +187,7 @@ pub fn init() -> Result<HashMap<String, Font>> {
     let default_repos = get_default_repos();
     let repo_fonts: HashMap<String, Vec<RepoFont>> = default_repos.iter().map(
         |repo| {
-            (repo.name.clone(), generate_repo_font_list_from_url(&repo.url).unwrap())
+            (repo.name.clone(), generate_repo_font_list_from_url(&repo.url, repo.key.clone()).unwrap())
         }).collect::<HashMap<String, Vec<RepoFont>>>();
     Ok(generate_fonts_list(repo_fonts, local_fonts))
 }
