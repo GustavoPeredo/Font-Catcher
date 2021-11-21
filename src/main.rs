@@ -1,9 +1,9 @@
-use std::env::args;
 use std::collections::HashMap;
+use std::env::args;
 use std::fs::{read_dir, File};
-use std::process::exit;
 use std::io::{Result, Write};
 use std::path::PathBuf;
+use std::process::exit;
 
 use dirs::data_dir;
 use serde_json::json;
@@ -11,16 +11,16 @@ use serde_json::json;
 mod lib;
 
 fn print_version() {
-                    println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
-                    println!(
-                        "Copyright (C) {}, all rights reserved",
-                        env!("CARGO_PKG_AUTHORS")
-                    );
-                    println!("This is free software. It is licensed for use, modification and");
-                    println!("redistribution under the terms of the GNU Affero General Public License,");
-                    println!("version 3. <https://www.gnu.org/licenses/agpl-3.0.en.html>");
-                    println!("");
-                    println!("{}", env!("CARGO_PKG_DESCRIPTION"));
+    println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+    println!(
+        "Copyright (C) {}, all rights reserved",
+        env!("CARGO_PKG_AUTHORS")
+    );
+    println!("This is free software. It is licensed for use, modification and");
+    println!("redistribution under the terms of the GNU Affero General Public License,");
+    println!("version 3. <https://www.gnu.org/licenses/agpl-3.0.en.html>");
+    println!("");
+    println!("{}", env!("CARGO_PKG_DESCRIPTION"));
 }
 
 struct Cli {
@@ -42,7 +42,7 @@ fn run() -> Result<()> {
         repo: None,
         use_local_repos: true,
         path: PathBuf::from("."),
-        fonts: Vec::new()
+        fonts: Vec::new(),
     };
 
     let mut skip: bool = false;
@@ -50,22 +50,22 @@ fn run() -> Result<()> {
         for i in 0..(args.len()) {
             match args[i].as_str() {
                 "--repo" => {
-                    cli.repo = Some(args[i + 1].clone()); 
+                    cli.repo = Some(args[i + 1].clone());
                     skip = true;
-                },
+                }
                 "--user" => {
                     cli.location = Some(lib::Location::User);
-                },
+                }
                 "--path" => {
                     cli.path = PathBuf::from(&args[i + 1]);
                     skip = true;
-                },
+                }
                 "--system" => {
                     cli.location = Some(lib::Location::System);
-                },
+                }
                 "--use-preinstalled-repos" => {
                     cli.use_local_repos = false;
-                },
+                }
                 _ => {
                     if !skip {
                         clean_args.push(args[i].clone());
@@ -80,7 +80,7 @@ fn run() -> Result<()> {
     }
     cli.command = clean_args[1].clone();
     cli.fonts = clean_args[2..].to_vec();
-    
+
     let font_catcher_dir = data_dir().unwrap().join("font-catcher");
     let repos_dir = font_catcher_dir.join("repos");
     let repos_file = font_catcher_dir.join("repos.conf");
@@ -94,7 +94,7 @@ fn run() -> Result<()> {
         match lib::generate_repo_font_list_from_file(&file.path()) {
             Ok(fonts_list) => {
                 local_repos.insert(file.file_name().into_string().unwrap(), fonts_list);
-            },
+            }
             Err(_) => {
                 eprintln!("Error while reading repo...");
             }
@@ -102,17 +102,20 @@ fn run() -> Result<()> {
     }
 
     let fonts_list = match cli.use_local_repos {
-        true => lib::generate_fonts_list(local_repos.clone(), lib::generate_local_fonts(None).unwrap()),
-        false => lib::init()?
+        true => lib::generate_fonts_list(
+            local_repos.clone(),
+            lib::generate_local_fonts(None).unwrap(),
+        ),
+        false => lib::init()?,
     };
 
     match cli.command.as_str() {
         "version" => {
             print_version();
-        },
+        }
         "update-repos" => {
             for r in local_repos_file.iter() {
-                println!("Updating {}...", r.name); 
+                println!("Updating {}...", r.name);
                 let mut file = File::create(repos_dir.join(r.name.clone() + ".json"))?;
                 file.write_all(
                     serde_json::to_string_pretty(&json!({
@@ -120,10 +123,11 @@ fn run() -> Result<()> {
                         "items": &lib::generate_repo_font_list_from_url(
                             &r.url, r.key.clone()
                         )?
-                    }))?.as_bytes()
+                    }))?
+                    .as_bytes(),
                 )?;
             }
-        },
+        }
         "list-local-repos" => {
             for r in local_repos.keys() {
                 println!("{}", r);
@@ -134,57 +138,61 @@ fn run() -> Result<()> {
                 match fonts_list.get(font) {
                     Some(data) => {
                         data.install_to_user(cli.repo.as_deref(), true)?;
-                    },
+                    }
                     None => {
                         println!("{} not found anywhere!", font);
-                        
                     }
                 };
             }
-        },
+        }
         "download" => {
             for font in cli.fonts.iter() {
                 match fonts_list.get(font) {
                     Some(data) => {
                         data.download(cli.repo.as_deref(), &cli.path, true)?;
-                    },
+                    }
                     None => {
                         println!("{} not found anywhere!", font);
-                        
                     }
                 };
             }
-        },
+        }
         "search" => {
             for font in cli.fonts.iter() {
                 for (name, data) in &fonts_list {
-                    if name.to_lowercase().contains(&font.to_lowercase()) &&
-                        (match cli.repo {
+                    if name.to_lowercase().contains(&font.to_lowercase())
+                        && (match cli.repo {
                             Some(ref repo) => data.is_font_in_repo(&repo),
-                            None => true
+                            None => true,
                         })
                     {
                         println!("\n{}:", &name);
-                        println!("  Available on: {}", match data.get_repos_availability() { Some(r) => r.join(" "), None => "".to_string() });
+                        println!(
+                            "  Available on: {}",
+                            match data.get_repos_availability() {
+                                Some(r) => r.join(" "),
+                                None => "".to_string(),
+                            }
+                        );
 
                         println!("  User installed: {}", data.is_font_user_installed());
                         println!("  System installed: {}", data.is_font_system_installed());
                     }
                 }
             }
-        },
+        }
         "remove" => {
             for font in cli.fonts.iter() {
                 match fonts_list.get(font) {
                     Some(data) => {
                         data.uninstall_from_user(true)?;
-                    },
+                    }
                     None => {
                         println!("{} not found anywhere!", font);
                     }
                 };
             }
-        },
+        }
         "check-for-updates" => {
             for (name, data) in &fonts_list {
                 if cli.location == Some(lib::Location::System) {
@@ -194,8 +202,8 @@ fn run() -> Result<()> {
                             for r in repos.iter() {
                                 println!("  {}", r);
                             }
-                        },
-                        None => {},
+                        }
+                        None => {}
                     }
                 } else {
                     match data.get_all_repos_with_update_user() {
@@ -204,51 +212,46 @@ fn run() -> Result<()> {
                             for r in repos.iter() {
                                 println!("  {}", r);
                             }
-                        },
-                        None => {},
+                        }
+                        None => {}
                     }
                 }
             }
-        },
+        }
         "update-all" => {
             for (_name, data) in &fonts_list {
                 if cli.location == Some(lib::Location::System) {
                     match data.get_all_repos_with_update_system() {
                         Some(repos) => {
                             data.install_to_user(Some(&repos[0]), true)?;
-                        },
-                        None => {},
+                        }
+                        None => {}
                     }
                 } else {
                     match data.get_all_repos_with_update_user() {
                         Some(repos) => {
                             data.install_to_user(Some(&repos[0]), true)?;
-                        },
-                        None => {},
+                        }
+                        None => {}
                     }
                 }
             }
-        },
+        }
         "update" => {
             for font in cli.fonts.iter() {
                 match fonts_list.get(font) {
                     Some(data) => {
-                        if cli.location == Some(lib::Location::System) &&
-                        data.is_update_available_system() {
+                        if cli.location == Some(lib::Location::System)
+                            && data.is_update_available_system()
+                        {
                             data.install_to_user(
-                                Some(
-                                    &data.get_all_repos_with_update_system()
-                                    .unwrap()[0]
-                                ),
-                                true
+                                Some(&data.get_all_repos_with_update_system().unwrap()[0]),
+                                true,
                             )?;
                         } else if data.is_update_available_user() {
                             data.install_to_user(
-                                Some(
-                                    &data.get_all_repos_with_update_user()
-                                    .unwrap()[0]
-                                ),
-                                true
+                                Some(&data.get_all_repos_with_update_user().unwrap()[0]),
+                                true,
                             )?;
                         }
                     }
@@ -260,14 +263,18 @@ fn run() -> Result<()> {
         }
         "list" => {
             for (name, data) in &fonts_list {
-                if (cli.repo != None && data.is_font_in_repo(&cli.repo.as_ref().unwrap())) || cli.repo == None {
-                    if cli.location == Some(lib::Location::System) &&
-                        data.is_font_system_installed() {
+                if (cli.repo != None && data.is_font_in_repo(&cli.repo.as_ref().unwrap()))
+                    || cli.repo == None
+                {
+                    if cli.location == Some(lib::Location::System)
+                        && data.is_font_system_installed()
+                    {
                         println!("{}", name);
-                    } else if cli.location == Some(lib::Location::User) &&
-                        data.is_font_user_installed() {
+                    } else if cli.location == Some(lib::Location::User)
+                        && data.is_font_user_installed()
+                    {
                         println!("{}", name);
-                    } else if cli.location == None{
+                    } else if cli.location == None {
                         println!("{}", name);
                     }
                 }

@@ -25,6 +25,7 @@
     nativeBuildInputs = with pkgs; [ 
       rustc
       rust-analyzer
+      rustfmt
       rls
       cargo
 

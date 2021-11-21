@@ -11,11 +11,18 @@ use dirs::{font_dir, home_dir};
 //Windows workaround
 #[cfg(target_os = "windows")]
 fn windows_user_folder_fonts() -> Option<PathBuf> {
-    return std::env::var_os("userprofile")
-        .and_then(|u| if u.is_empty() { None } else {
+    return std::env::var_os("userprofile").and_then(|u| {
+        if u.is_empty() {
+            None
+        } else {
             let f = PathBuf::from(u).join("AppData\\Local\\Microsoft\\Windows\\Fonts");
-            if !f.is_dir() { None } else { Some(f) }
-        })
+            if !f.is_dir() {
+                None
+            } else {
+                Some(f)
+            }
+        }
+    });
 }
 #[cfg(target_os = "windows")]
 use self::windows_user_folder_fonts as font_dir;
@@ -23,8 +30,8 @@ use self::windows_user_folder_fonts as font_dir;
 use font_kit::handle::Handle;
 use font_kit::source::SystemSource;
 
-use chrono::{DateTime, NaiveDate};
 use chrono::offset::Utc;
+use chrono::{DateTime, NaiveDate};
 
 use curl::easy::Easy;
 
@@ -64,12 +71,12 @@ pub struct RepoFont {
 }
 
 #[derive(Clone, Debug)]
-pub struct LocalFont{
+pub struct LocalFont {
     family: String,
     variants: Vec<String>,
     files: HashMap<String, PathBuf>,
     lastModified: SystemTime,
-    system: bool
+    system: bool,
 }
 
 #[derive(Eq, PartialEq, Hash, Debug, Clone)]
@@ -79,7 +86,7 @@ pub enum Location {
 }
 
 #[derive(Debug, Clone)]
-pub struct Font{
+pub struct Font {
     repo_font: HashMap<String, RepoFont>,
     local_font: HashMap<Location, LocalFont>,
 }
@@ -92,11 +99,13 @@ fn download(url: &str) -> Vec<u8> {
     let _location = handle.follow_location(true);
 
     {
-    let mut transfer = handle.transfer();
-        transfer.write_function(|data| {
-            file.extend_from_slice(data);
-            Ok(data.len())
-        }).unwrap();
+        let mut transfer = handle.transfer();
+        transfer
+            .write_function(|data| {
+                file.extend_from_slice(data);
+                Ok(data.len())
+            })
+            .unwrap();
         transfer.perform().unwrap();
     }
     file
@@ -134,68 +143,66 @@ pub fn get_default_repos() -> Vec<Repository> {
 }
 
 pub fn generate_repos_from_str(repos_as_str: &str) -> Result<Vec<Repository>> {
-    let repositories: Repositories = 
-        match toml::from_str(&repos_as_str) {
-            Ok(r) => r,
-            Err(e) => {
-                eprintln!("error: {:#}", e);
-                println!("Skipping reading from local repositories");
-                Repositories {
-                    repo: Vec::<Repository>::new()
-                }
+    let repositories: Repositories = match toml::from_str(&repos_as_str) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("error: {:#}", e);
+            println!("Skipping reading from local repositories");
+            Repositories {
+                repo: Vec::<Repository>::new(),
             }
+        }
     };
     Ok(repositories.repo)
 }
 
-pub fn generate_repos_from_file(
-    repos_path: &PathBuf
-) -> Result<Vec<Repository>> {
+pub fn generate_repos_from_file(repos_path: &PathBuf) -> Result<Vec<Repository>> {
     Ok(generate_repos_from_str(&fs::read_to_string(repos_path)?)?)
 }
 
-pub fn generate_repo_font_list_from_str(
-    font_list_as_str: &str
-) -> Result<Vec<RepoFont>> {
+pub fn generate_repo_font_list_from_str(font_list_as_str: &str) -> Result<Vec<RepoFont>> {
     Ok(serde_json::from_str::<FontsList>(font_list_as_str)?.items)
 }
 
-pub fn generate_repo_font_list_from_file(
-    repo_path: &PathBuf
-) -> Result<Vec<RepoFont>> {
-    Ok(generate_repo_font_list_from_str(&fs::read_to_string(repo_path)?)?)
+pub fn generate_repo_font_list_from_file(repo_path: &PathBuf) -> Result<Vec<RepoFont>> {
+    Ok(generate_repo_font_list_from_str(&fs::read_to_string(
+        repo_path,
+    )?)?)
 }
 
 pub fn generate_repo_font_list_from_url(
     repo_url: &str,
-    key: Option<String>
+    key: Option<String>,
 ) -> Result<Vec<RepoFont>> {
     let repo_url = match key {
         Some(key) => repo_url.replace("{API_KEY}", &key),
-        None => repo_url.to_string()
+        None => repo_url.to_string(),
     };
     Ok(generate_repo_font_list_from_str(
         match str::from_utf8(download(&repo_url).as_slice()) {
             Ok(s) => s,
-            Err(_) => ""
-        }
+            Err(_) => "",
+        },
     )?)
 }
 
 pub fn init() -> Result<HashMap<String, Font>> {
     let local_fonts = generate_local_fonts(None)?;
     let default_repos = get_default_repos();
-    let repo_fonts: HashMap<String, Vec<RepoFont>> = default_repos.iter().map(
-        |repo| {
-            (repo.name.clone(), generate_repo_font_list_from_url(&repo.url, repo.key.clone()).unwrap())
-        }).collect::<HashMap<String, Vec<RepoFont>>>();
+    let repo_fonts: HashMap<String, Vec<RepoFont>> = default_repos
+        .iter()
+        .map(|repo| {
+            (
+                repo.name.clone(),
+                generate_repo_font_list_from_url(&repo.url, repo.key.clone()).unwrap(),
+            )
+        })
+        .collect::<HashMap<String, Vec<RepoFont>>>();
     Ok(generate_fonts_list(repo_fonts, local_fonts))
 }
 
 // Hopefully there is a better way to do this in the future
-pub fn generate_local_fonts(
-    location: Option<Location>
-) -> Result<Vec<LocalFont>> {
+pub fn generate_local_fonts(location: Option<Location>) -> Result<Vec<LocalFont>> {
     let mut user_results: HashMap<String, LocalFont> = HashMap::new();
     let mut sys_results: HashMap<String, LocalFont> = HashMap::new();
 
@@ -208,82 +215,103 @@ pub fn generate_local_fonts(
                 if let Handle::Path {
                     ref path,
                     font_index: _,
-                } = font {
+                } = font
+                {
                     match fs::metadata(&path) {
                         Ok(metadata) => {
                             // Improve this :(
-                            let is_system = !path.clone().into_os_string().into_string().unwrap().contains(&home_dir().unwrap().into_os_string().into_string().unwrap());
+                            let is_system = !path
+                                .clone()
+                                .into_os_string()
+                                .into_string()
+                                .unwrap()
+                                .contains(
+                                    &home_dir().unwrap().into_os_string().into_string().unwrap(),
+                                );
                             if is_system {
-                                let counter = sys_results.entry(font_info.family_name()).or_insert(LocalFont {
-    family: font_info.full_name(),
-    variants: Vec::new(),
-    files: HashMap::new(),
-    lastModified: metadata.modified()?,
-    system: is_system
-                                });
-                                let variant_name = font_info.full_name().replace(&font_info.family_name(), "");
+                                let counter = sys_results.entry(font_info.family_name()).or_insert(
+                                    LocalFont {
+                                        family: font_info.full_name(),
+                                        variants: Vec::new(),
+                                        files: HashMap::new(),
+                                        lastModified: metadata.modified()?,
+                                        system: is_system,
+                                    },
+                                );
+                                let variant_name =
+                                    font_info.full_name().replace(&font_info.family_name(), "");
                                 counter.variants.push(variant_name.clone());
                                 counter.files.insert(variant_name.clone(), path.clone());
                             } else {
-                                let counter = user_results.entry(font_info.family_name()).or_insert(LocalFont {
-    family: font_info.family_name(),
-    variants: Vec::new(),
-    files: HashMap::new(),
-    lastModified: metadata.modified()?,
-    system: is_system
-                                });
-                                let variant_name = font_info.full_name().replace(&font_info.family_name(), "");
+                                let counter = user_results
+                                    .entry(font_info.family_name())
+                                    .or_insert(LocalFont {
+                                        family: font_info.family_name(),
+                                        variants: Vec::new(),
+                                        files: HashMap::new(),
+                                        lastModified: metadata.modified()?,
+                                        system: is_system,
+                                    });
+                                let variant_name =
+                                    font_info.full_name().replace(&font_info.family_name(), "");
                                 counter.variants.push(variant_name.clone());
                                 counter.files.insert(variant_name.clone(), path.clone());
-
                             }
-                        },
+                        }
                         Err(_) => {}
                     }
                 }
-            },
+            }
             Err(_) => {}
         }
     }
 
-    Ok(
-        match location {
-            Some(l) => {
-                match l {
-                    Location::User => user_results.values().cloned().collect(),
-                    Location::System => sys_results.values().cloned().collect()
-                }
-            },
-            None => vec![user_results.values().cloned().collect(), sys_results.values().cloned().collect::<Vec<LocalFont>>()].iter().flatten().cloned().collect()
-        }
-    )
+    Ok(match location {
+        Some(l) => match l {
+            Location::User => user_results.values().cloned().collect(),
+            Location::System => sys_results.values().cloned().collect(),
+        },
+        None => vec![
+            user_results.values().cloned().collect(),
+            sys_results.values().cloned().collect::<Vec<LocalFont>>(),
+        ]
+        .iter()
+        .flatten()
+        .cloned()
+        .collect(),
+    })
 }
 
 pub fn generate_fonts_list(
     repos_font_lists: HashMap<String, Vec<RepoFont>>,
-    local_fonts: Vec<LocalFont>
+    local_fonts: Vec<LocalFont>,
 ) -> HashMap<String, Font> {
     let mut result: HashMap<String, Font> = HashMap::new();
 
     for (repo_name, repo_fonts) in repos_font_lists.iter() {
         for repo_font in repo_fonts {
-            let current_font = result.entry(repo_font.family.clone()).
-                or_insert(Font {
+            let current_font = result.entry(repo_font.family.clone()).or_insert(Font {
                 repo_font: HashMap::new(),
-                local_font: HashMap::new()
+                local_font: HashMap::new(),
             });
-            current_font.repo_font.insert(repo_name.to_string(), repo_font.clone());
+            current_font
+                .repo_font
+                .insert(repo_name.to_string(), repo_font.clone());
         }
     }
     for local_font in local_fonts {
         let current_font = result.entry(local_font.family.clone()).or_insert(Font {
             repo_font: HashMap::new(),
-            local_font: HashMap::new()
+            local_font: HashMap::new(),
         });
         if local_font.system {
-            current_font.local_font.insert(Location::System, local_font.clone());
+            current_font
+                .local_font
+                .insert(Location::System, local_font.clone());
         } else {
-            current_font.local_font.insert(Location::User, local_font.clone());
+            current_font
+                .local_font
+                .insert(Location::User, local_font.clone());
         }
     }
     result
@@ -291,7 +319,11 @@ pub fn generate_fonts_list(
 
 impl Font {
     pub fn is_font_installed(&self) -> bool {
-        if self.local_font.len() > 0 { true } else { false }
+        if self.local_font.len() > 0 {
+            true
+        } else {
+            false
+        }
     }
 
     pub fn is_font_system_installed(&self) -> bool {
@@ -311,7 +343,7 @@ impl Font {
     pub fn is_font_in_repo(&self, repo: &str) -> bool {
         match &self.repo_font.get(repo) {
             Some(_repo_font) => true,
-            None => false
+            None => false,
         }
     }
 
@@ -326,148 +358,137 @@ impl Font {
     pub fn get_local_user_variants(&self) -> Option<Vec<String>> {
         match &self.local_font.get(&Location::User) {
             Some(local_font) => Some(local_font.variants.clone()),
-            None => None
+            None => None,
         }
     }
 
     pub fn get_local_system_variants(&self) -> Option<Vec<String>> {
         match &self.local_font.get(&Location::System) {
             Some(local_font) => Some(local_font.variants.clone()),
-            None => None
+            None => None,
         }
     }
 
     pub fn get_repo_variants(&self, repo: &str) -> Option<Vec<String>> {
         match &self.repo_font.get(repo) {
             Some(repo_font) => Some(repo_font.variants.clone()),
-            None => None
+            None => None,
         }
     }
-    
+
     pub fn get_local_user_files(&self) -> Option<HashMap<String, PathBuf>> {
         match &self.local_font.get(&Location::User) {
             Some(local_font) => Some(local_font.files.clone()),
-            None => None
+            None => None,
         }
     }
 
     pub fn get_local_system_files(&self) -> Option<HashMap<String, PathBuf>> {
         match &self.local_font.get(&Location::System) {
             Some(local_font) => Some(local_font.files.clone()),
-            None => None
+            None => None,
         }
     }
 
     pub fn get_repo_files(&self, repo: &str) -> Option<HashMap<String, String>> {
         match &self.repo_font.get(repo) {
             Some(repo_font) => Some(repo_font.files.clone()),
-            None => None
+            None => None,
         }
     }
 
     pub fn get_local_user_last_modified(&self) -> Option<DateTime<Utc>> {
         match &self.local_font.get(&Location::User) {
             Some(local_font) => Some(local_font.lastModified.into()),
-            None => None
+            None => None,
         }
     }
 
     pub fn get_local_system_last_modified(&self) -> Option<DateTime<Utc>> {
         match &self.local_font.get(&Location::System) {
             Some(local_font) => Some(local_font.lastModified.into()),
-            None => None
+            None => None,
         }
     }
-    
+
     pub fn get_repo_last_modified(&self, repo: &str) -> Option<DateTime<Utc>> {
         match &self.repo_font.get(repo) {
-            Some(repo_font) => {
-                match &repo_font.lastModified {
-                    Some(date) => {
-                        let naive_date = NaiveDate::parse_from_str(
-                            &date, "%Y-%m-%d"
-                        );
-                        match naive_date{
-                            Ok(naive_date) => Some(DateTime::from_utc(
-                                naive_date.and_hms(0,0,0), Utc)),
-                            Err(_) => {
-                                eprintln!("error: date not in %Y-%m-%d");
-                                None
-                            }
+            Some(repo_font) => match &repo_font.lastModified {
+                Some(date) => {
+                    let naive_date = NaiveDate::parse_from_str(&date, "%Y-%m-%d");
+                    match naive_date {
+                        Ok(naive_date) => {
+                            Some(DateTime::from_utc(naive_date.and_hms(0, 0, 0), Utc))
                         }
-                    },
-                    None => None
+                        Err(_) => {
+                            eprintln!("error: date not in %Y-%m-%d");
+                            None
+                        }
+                    }
                 }
+                None => None,
             },
-            None => None
+            None => None,
         }
     }
 
     pub fn get_font_family_system(&self) -> Option<String> {
-        match &self.local_font.get(&Location::System) {                          
+        match &self.local_font.get(&Location::System) {
             Some(local_font) => Some(local_font.family.clone()),
-            None => None                                                       
+            None => None,
         }
     }
     pub fn get_font_family_user(&self) -> Option<String> {
-        match &self.local_font.get(&Location::User) {                          
+        match &self.local_font.get(&Location::User) {
             Some(local_font) => Some(local_font.family.clone()),
-            None => None                                                       
+            None => None,
         }
     }
 
     pub fn get_repo_family(&self, repo: &str) -> Option<String> {
         match &self.repo_font.get(repo) {
             Some(repo_font) => Some(repo_font.family.clone()),
-            None => None
+            None => None,
         }
     }
 
     pub fn get_repo_subsets(&self, repo: &str) -> Option<Vec<String>> {
         match &self.repo_font.get(repo) {
-            Some(repo_font) => {
-                match &repo_font.subsets {
-                    Some(i) => Some(i.clone()),
-                    None => None
-                }
-            }
-            None => None
+            Some(repo_font) => match &repo_font.subsets {
+                Some(i) => Some(i.clone()),
+                None => None,
+            },
+            None => None,
         }
     }
 
     pub fn get_repo_version(&self, repo: &str) -> Option<String> {
         match &self.repo_font.get(repo) {
-            Some(repo_font) => {
-                match &repo_font.version {
-                    Some(i) => Some(i.clone()),
-                    None => None
-                }
-            }
-            None => None
+            Some(repo_font) => match &repo_font.version {
+                Some(i) => Some(i.clone()),
+                None => None,
+            },
+            None => None,
         }
     }
 
     pub fn get_repo_commentary(&self, repo: &str) -> Option<String> {
         match &self.repo_font.get(repo) {
-            Some(repo_font) => {
-                match &repo_font.commentary {
-                    Some(i) => Some(i.clone()),
-                    None => None
-                }
-            }
-            None => None
+            Some(repo_font) => match &repo_font.commentary {
+                Some(i) => Some(i.clone()),
+                None => None,
+            },
+            None => None,
         }
     }
 
     pub fn get_repo_creator(&self, repo: &str) -> Option<String> {
         match &self.repo_font.get(repo) {
-            Some(repo_font) => {
-                match &repo_font.creator {
-                    Some(i) => Some(i.clone()),
-                    None => None
-                }
-            }
-            None => None
+            Some(repo_font) => match &repo_font.creator {
+                Some(i) => Some(i.clone()),
+                None => None,
+            },
+            None => None,
         }
     }
 
@@ -479,14 +500,14 @@ impl Font {
                 for repo in repos.iter() {
                     match &self.get_repo_last_modified(repo) {
                         Some(repo_last_modified) => {
-                            if repo_last_modified > local_last_modified{
+                            if repo_last_modified > local_last_modified {
                                 result.push(repo.to_string());
                             }
-                        },
+                        }
                         None => {}
                     }
                 }
-            },
+            }
             None => {}
         }
         if result.len() > 0 {
@@ -504,14 +525,14 @@ impl Font {
                 for repo in repos.iter() {
                     match &self.get_repo_last_modified(repo) {
                         Some(repo_last_modified) => {
-                            if repo_last_modified > local_last_modified{
-                                 result.push(repo.to_string());
+                            if repo_last_modified > local_last_modified {
+                                result.push(repo.to_string());
                             }
-                        },
+                        }
                         None => {}
                     }
                 }
-            },
+            }
             None => {}
         }
         if result.len() > 0 {
@@ -524,21 +545,21 @@ impl Font {
     pub fn is_update_available_user(&self) -> bool {
         match self.get_all_repos_with_update_user() {
             Some(_repos) => true,
-            None => false
+            None => false,
         }
     }
 
     pub fn is_update_available_system(&self) -> bool {
         match self.get_all_repos_with_update_system() {
             Some(_repos) => true,
-            None => false
+            None => false,
         }
     }
     pub fn get_first_available_repo(&self) -> Option<String> {
         let repos = &self.get_repos_availability();
         match repos {
             Some(repos) => Some(repos.first().unwrap().to_string()),
-            None => None
+            None => None,
         }
     }
 
@@ -551,8 +572,8 @@ impl Font {
                     }
                     fs::remove_file(&file)?;
                 }
-            },
-            None => {},
+            }
+            None => {}
         }
         let mut new_font = self.clone();
         new_font.local_font.remove(&Location::User);
@@ -568,34 +589,35 @@ impl Font {
                     }
                     fs::remove_file(&file)?;
                 }
-            },
-            None => {},
+            }
+            None => {}
         }
         let mut new_font = self.clone();
         new_font.local_font.remove(&Location::System);
         Ok(new_font)
     }
 
-    // This download and install function need complete rework
-    pub fn download(&self, repo: Option<&str>, download_path: &PathBuf, output: bool) -> Result<()> {
+    // This download and install function needs an improvement
+    pub fn download(
+        &self,
+        repo: Option<&str>,
+        download_path: &PathBuf,
+        output: bool,
+    ) -> Result<()> {
         let repos = self.get_first_available_repo();
         let repo = match repo {
             Some(repo) => repo,
             None => match &repos {
                 Some(repo) => repo,
-                None => ""
-            }
+                None => "",
+            },
         };
 
         match self.get_repo_files(repo) {
             Some(files) => {
                 for (variant, file) in files {
-                    let extension: &str = file
-                            .split(".")
-                            .collect::<Vec<&str>>()
-                            .last().unwrap();
-                        
-                        
+                    let extension: &str = file.split(".").collect::<Vec<&str>>().last().unwrap();
+
                     if output {
                         println!(
                             "Downloading {} from {}",
@@ -603,21 +625,23 @@ impl Font {
                                 "{}-{}.{}",
                                 &self.get_repo_family(repo).unwrap(),
                                 &variant,
-                                &extension),
-                            &file);
+                                &extension
+                            ),
+                            &file
+                        );
                     }
                     download_file(
-                            &download_path.join(&format!(
-                                "{}-{}.{}",
-                                &self.get_repo_family(repo).unwrap(),
-                                &variant,
-                                &extension)
-                            ),
-                            &file,
-                        )?;
+                        &download_path.join(&format!(
+                            "{}-{}.{}",
+                            &self.get_repo_family(repo).unwrap(),
+                            &variant,
+                            &extension
+                        )),
+                        &file,
+                    )?;
                 }
-            },
-            None => {},
+            }
+            None => {}
         }
         Ok(())
     }
@@ -627,15 +651,17 @@ impl Font {
 
         self.download(repo, &install_dir, output)?;
         let mut new_font = self.clone();
-        new_font.local_font.insert(Location::User,
+        new_font.local_font.insert(
+            Location::User,
             LocalFont {
                 family: "".to_string(),
                 variants: Vec::new(),
                 files: HashMap::new(),
                 lastModified: SystemTime::now(),
-                system: false
-            });
+                system: false,
+            },
+        );
         println!("This will return the installed font");
         Ok(new_font)
-    }   
+    }
 }
