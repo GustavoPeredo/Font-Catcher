@@ -205,8 +205,24 @@ fn run() -> Result<()> {
                 }
             }
         },
-        "update" => {
-            //download_fonts(&populated_repos, &install_dir, check_for_font_updates(&populated_repos)?)?;
+        "update-all" => {
+            for (name, data) in &fonts_list {
+                if cli.location == Some(lib::Location::System) {
+                    match data.get_all_repos_with_update_system() {
+                        Some(repos) => {
+                            data.install_to_user(Some(&repos[0]), true);
+                        },
+                        None => {},
+                    }
+                } else {
+                    match data.get_all_repos_with_update_user() {
+                        Some(repos) => {
+                            data.install_to_user(Some(&repos[0]), true);
+                        },
+                        None => {},
+                    }
+                }
+            }
         },
         "list" => {
             //list_fonts(&populated_repos, true)?;
