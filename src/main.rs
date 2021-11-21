@@ -127,8 +127,8 @@ fn run() -> Result<()> {
         "install" => {
             for font in cli.fonts.iter() {
                 match fonts_list.get(font) {
-                    Some(f) => {
-                        f.install_to_user(cli.repo.as_deref(), true)?;
+                    Some(data) => {
+                        data.install_to_user(cli.repo.as_deref(), true)?;
                     },
                     None => {
                         println!("{} not found anywhere!", font);
@@ -140,8 +140,8 @@ fn run() -> Result<()> {
         "download" => {
             for font in cli.fonts.iter() {
                 match fonts_list.get(font) {
-                    Some(f) => {
-                        f.download(cli.repo.as_deref(), &cli.path, true)?;
+                    Some(data) => {
+                        data.download(cli.repo.as_deref(), &cli.path, true)?;
                     },
                     None => {
                         println!("{} not found anywhere!", font);
@@ -171,8 +171,8 @@ fn run() -> Result<()> {
         "remove" => {
             for font in cli.fonts.iter() {
                 match fonts_list.get(font) {
-                    Some(f) => {
-                        f.uninstall_from_user(true)?;
+                    Some(data) => {
+                        data.uninstall_from_user(true)?;
                     },
                     None => {
                         println!("{} not found anywhere!", font);
@@ -210,20 +210,49 @@ fn run() -> Result<()> {
                 if cli.location == Some(lib::Location::System) {
                     match data.get_all_repos_with_update_system() {
                         Some(repos) => {
-                            data.install_to_user(Some(&repos[0]), true);
+                            data.install_to_user(Some(&repos[0]), true)?;
                         },
                         None => {},
                     }
                 } else {
                     match data.get_all_repos_with_update_user() {
                         Some(repos) => {
-                            data.install_to_user(Some(&repos[0]), true);
+                            data.install_to_user(Some(&repos[0]), true)?;
                         },
                         None => {},
                     }
                 }
             }
         },
+        "update" => {
+            for font in cli.fonts.iter() {
+                match fonts_list.get(font) {
+                    Some(data) => {
+                        if cli.location == Some(lib::Location::System) &&
+                        data.is_update_available_system() {
+                            data.install_to_user(
+                                Some(
+                                    &data.get_all_repos_with_update_system()
+                                    .unwrap()[0]
+                                ),
+                                true
+                            )?;
+                        } else if data.is_update_available_user() {
+                            data.install_to_user(
+                                Some(
+                                    &data.get_all_repos_with_update_user()
+                                    .unwrap()[0]
+                                ),
+                                true
+                            )?;
+                        }
+                    }
+                    None => {
+                        println!("{} not found anywhere!", font);
+                    }
+                }
+            }
+        }
         "list" => {
             //list_fonts(&populated_repos, true)?;
         }

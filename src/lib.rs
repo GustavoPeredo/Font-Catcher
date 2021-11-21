@@ -403,7 +403,6 @@ impl Font {
         }
     }
 
-
     pub fn get_font_family_system(&self) -> Option<String> {
         match &self.local_font.get(&Location::System) {                          
             Some(local_font) => Some(local_font.family.clone()),
@@ -522,6 +521,19 @@ impl Font {
         }
     }
 
+    pub fn is_update_available_user(&self) -> bool {
+        match self.get_all_repos_with_update_user() {
+            Some(_repos) => true,
+            None => false
+        }
+    }
+
+    pub fn is_update_available_system(&self) -> bool {
+        match self.get_all_repos_with_update_system() {
+            Some(_repos) => true,
+            None => false
+        }
+    }
     pub fn get_first_available_repo(&self) -> Option<String> {
         let repos = &self.get_repos_availability();
         match repos {
