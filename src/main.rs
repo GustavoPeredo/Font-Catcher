@@ -28,7 +28,8 @@ struct Cli {
     command: String,
     repo: Option<String>,
     path: PathBuf,
-    fonts: Vec<String>
+    fonts: Vec<String>,
+    use_local_repos: bool,
 }
 
 fn run() -> Result<()> {
@@ -39,10 +40,11 @@ fn run() -> Result<()> {
         location: None,
         command: "version".to_string(),
         repo: None,
+        use_local_repos: true,
         path: PathBuf::from("."),
         fonts: Vec::new()
     };
-    
+
     let mut skip: bool = false;
     if args.len() > 1 {
         for i in 0..(args.len()) {
@@ -61,6 +63,9 @@ fn run() -> Result<()> {
                 "--system" => {
                     cli.location = Some(lib::Location::System);
                 },
+                "--use-preinstalled-repos" => {
+                    cli.use_local_repos = false;
+                },
                 _ => {
                     if !skip {
                         clean_args.push(args[i].clone());
@@ -76,9 +81,6 @@ fn run() -> Result<()> {
     cli.command = clean_args[1].clone();
     cli.fonts = clean_args[2..].to_vec();
     
-    // Get directly from default repos
-    // let fonts_list = lib::init()?;
-
     let font_catcher_dir = data_dir().unwrap().join("font-catcher");
     let repos_dir = font_catcher_dir.join("repos");
     let repos_file = font_catcher_dir.join("repos.conf");
@@ -88,19 +90,21 @@ fn run() -> Result<()> {
     let mut local_repos: HashMap<String, Vec<lib::RepoFont>> = HashMap::new();
 
     for file in read_dir(&repos_dir)? {
-            let file = file.unwrap();
-            match lib::generate_repo_font_list_from_file(&file.path()) {
-                Ok(FontsList) => {
-                    local_repos.insert(file.file_name().into_string().unwrap(), FontsList);
-                },
-                Err(_) => {
-                    eprintln!("Error while reading repo...");
-                }
+        let file = file.unwrap();
+        match lib::generate_repo_font_list_from_file(&file.path()) {
+            Ok(FontsList) => {
+                local_repos.insert(file.file_name().into_string().unwrap(), FontsList);
+            },
+            Err(_) => {
+                eprintln!("Error while reading repo...");
             }
+        }
     }
 
-
-    let mut fonts_list = lib::generate_fonts_list(local_repos.clone(), lib::generate_local_fonts(None).unwrap());
+    let fonts_list = match cli.use_local_repos {
+        true => lib::generate_fonts_list(local_repos.clone(), lib::generate_local_fonts(None).unwrap()),
+        false => lib::init()?
+    };
 
     match cli.command.as_str() {
         "version" => {
@@ -120,7 +124,7 @@ fn run() -> Result<()> {
                 )?;
             }
         },
-        "list-repos" => {
+        "list-local-repos" => {
             for r in local_repos.keys() {
                 println!("{}", r);
             }
@@ -207,7 +211,7 @@ fn run() -> Result<()> {
             }
         },
         "update-all" => {
-            for (name, data) in &fonts_list {
+            for (_name, data) in &fonts_list {
                 if cli.location == Some(lib::Location::System) {
                     match data.get_all_repos_with_update_system() {
                         Some(repos) => {
