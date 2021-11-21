@@ -7,7 +7,7 @@ Cool badges :P
 ![main](https://github.com/GustavoPeredo/Font-Catcher/actions/workflows/rust.yml/badge.svg)
 ![publishing](https://github.com/GustavoPeredo/Font-Catcher/actions/workflows/publish-crate.yml/badge.svg)
 ![crate downloads](https://shields.io/crates/d/font-catcher)
-![built with nix](https://builtwithnix.org/badge.svg)](https://builtwithnix.org)
+![built with nix](https://builtwithnix.org/badge.svg)
 
 ## User Quick Start
 
