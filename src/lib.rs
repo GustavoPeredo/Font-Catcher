@@ -467,7 +467,7 @@ impl Font {
         }
     }
 
-    pub fn is_update_available_in_repos_user(&self) -> Option<Vec<String>> {
+    pub fn get_all_repos_with_update_user(&self) -> Option<Vec<String>> {
         let mut result: Vec<String> = Vec::new();
         let local_last_modified = &self.get_local_user_last_modified()?;
         match &self.get_repos_availability() {
@@ -492,7 +492,7 @@ impl Font {
         }
     }
 
-    pub fn is_update_available_in_repos_system(&self) -> Option<Vec<String>> {
+    pub fn get_all_repos_with_update_system(&self) -> Option<Vec<String>> {
         let mut result: Vec<String> = Vec::new();
         let local_last_modified = &self.get_local_system_last_modified()?;
         match &self.get_repos_availability() {
@@ -501,7 +501,7 @@ impl Font {
                     match &self.get_repo_last_modified(repo) {
                         Some(repo_last_modified) => {
                             if repo_last_modified > local_last_modified{
-                                result.push(repo.to_string());
+                                 result.push(repo.to_string());
                             }
                         },
                         None => {}
@@ -559,11 +559,12 @@ impl Font {
         Ok(new_font)
     }
 
+    // This download and install function need complete rework
     pub fn download(&self, repo: Option<&str>, download_path: &PathBuf, output: bool) -> Result<()> {
-        let repos = &self.get_first_available_repo();
+        let repos = self.get_first_available_repo();
         let repo = match repo {
             Some(repo) => repo,
-            None => match repos {
+            None => match &repos {
                 Some(repo) => repo,
                 None => ""
             }
@@ -605,38 +606,19 @@ impl Font {
     }
 
     pub fn install_to_user(&self, repo: Option<&str>, output: bool) -> Result<Font> {
-        //Remove this eventually
-        let repos = &self.get_first_available_repo();
-        let repo = match repo {
-            Some(repo) => Some(repo),
-            None => match repos {
-                Some(repo) => Some(repo.as_str()),
-                None => None
-            }
-        };
         let install_dir = font_dir().unwrap();
 
         self.download(repo, &install_dir, output)?;
         let mut new_font = self.clone();
         new_font.local_font.insert(Location::User,
             LocalFont {
-                family: self.get_repo_family(repo.unwrap()).unwrap().clone(),
-                variants: self.get_repo_variants(repo.unwrap()).unwrap().clone(),
-                files: self.get_repo_files(repo.unwrap()).unwrap().iter().map(|(variant, url)| {
-                    let extension: &str = url 
-                        .split(".")
-                        .collect::<Vec<&str>>()
-                        .last().unwrap();
-                    return (variant.clone(), install_dir.join(&format!(
-                        "{}-{}.{}",
-                        &self.get_repo_family(repo.unwrap()).unwrap(),
-                        &variant,
-                        &extension)
-                    ));
-                }).clone().collect(),
+                family: "".to_string(),
+                variants: Vec::new(),
+                files: HashMap::new(),
                 lastModified: SystemTime::now(),
                 system: false
             });
+        println!("This will return the installed font");
         Ok(new_font)
     }   
 }
