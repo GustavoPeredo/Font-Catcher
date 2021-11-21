@@ -254,7 +254,19 @@ fn run() -> Result<()> {
             }
         }
         "list" => {
-            //list_fonts(&populated_repos, true)?;
+            for (name, data) in &fonts_list {
+                if (cli.repo != None && data.is_font_in_repo(&cli.repo.as_ref().unwrap())) || cli.repo == None {
+                    if cli.location == Some(lib::Location::System) &&
+                        data.is_font_system_installed() {
+                        println!("{}", name);
+                    } else if cli.location == Some(lib::Location::User) &&
+                        data.is_font_user_installed() {
+                        println!("{}", name);
+                    } else if cli.location == None{
+                        println!("{}", name);
+                    }
+                }
+            }
         }
         _ => {
             println!("{} is not a valid operation, skipping...", cli.command);
