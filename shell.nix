@@ -38,8 +38,13 @@
       expat
       fontconfig
 
+      curl
+
       neovim
       nodejs
       rustup
+    ] ++ pkgs.lib.optionals stdenv.isDarwin [
+      darwin.apple_sdk.frameworks.CoreText
+      libiconv
     ];
 }

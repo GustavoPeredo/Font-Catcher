@@ -215,8 +215,7 @@ pub fn generate_local_fonts(location: Option<Location>) -> Result<Vec<LocalFont>
                 if let Handle::Path {
                     ref path,
                     font_index: _,
-                } = font
-                {
+                } = font {
                     match fs::metadata(&path) {
                         Ok(metadata) => {
                             // Improve this :(
@@ -258,11 +257,26 @@ pub fn generate_local_fonts(location: Option<Location>) -> Result<Vec<LocalFont>
                                 counter.files.insert(variant_name.clone(), path.clone());
                             }
                         }
-                        Err(_) => {}
+                        Err(e) => { }
                     }
+                } else if let Handle::Memory {
+                    ref bytes,
+                    font_index: _,
+                } = font {
+                    let counter = sys_results
+                        .entry(font_info.family_name())
+                        .or_insert(LocalFont {
+                            family: font_info.family_name(),
+                            variants: Vec::new(),
+                            files: HashMap::new(),
+                            lastModified: SystemTime::now(),                            system: true,
+                    });
+                    let variant_name =
+                        font_info.full_name().replace(&font_info.family_name(), "");
+                    counter.variants.push(variant_name.clone());
                 }
-            }
-            Err(_) => {}
+            },
+            Err(e) => { }
         }
     }
 
