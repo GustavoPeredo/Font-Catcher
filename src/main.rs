@@ -137,7 +137,7 @@ fn run() -> Result<()> {
             for font in cli.fonts.iter() {
                 match fonts_list.get(font) {
                     Some(data) => {
-                        data.install_to_user(cli.repo.as_deref(), true)?;
+                        data.clone().install_to_user(cli.repo.as_deref(), true)?;
                     }
                     None => {
                         println!("{} not found anywhere!", font);
@@ -149,7 +149,7 @@ fn run() -> Result<()> {
             for font in cli.fonts.iter() {
                 match fonts_list.get(font) {
                     Some(data) => {
-                        data.download(cli.repo.as_deref(), &cli.path, true)?;
+                        data.clone().download(cli.repo.as_deref(), &cli.path, true)?;
                     }
                     None => {
                         println!("{} not found anywhere!", font);
@@ -160,6 +160,7 @@ fn run() -> Result<()> {
         "search" => {
             for font in cli.fonts.iter() {
                 for (name, data) in &fonts_list {
+                    let mut data = data.clone();
                     if name.to_lowercase().contains(&font.to_lowercase())
                         && (match cli.repo {
                             Some(ref repo) => data.is_font_in_repo(&repo),
@@ -185,7 +186,7 @@ fn run() -> Result<()> {
             for font in cli.fonts.iter() {
                 match fonts_list.get(font) {
                     Some(data) => {
-                        data.uninstall_from_user(true)?;
+                        data.clone().uninstall_from_user(true)?;
                     }
                     None => {
                         println!("{} not found anywhere!", font);
@@ -194,7 +195,8 @@ fn run() -> Result<()> {
             }
         }
         "check-for-updates" => {
-            for (name, data) in &fonts_list {
+            for (name, data) in fonts_list {
+                let mut data = data.clone();
                 if cli.location == Some(lib::Location::System) {
                     match data.get_all_repos_with_update_system() {
                         Some(repos) => {
@@ -219,7 +221,8 @@ fn run() -> Result<()> {
             }
         }
         "update-all" => {
-            for (_name, data) in &fonts_list {
+            for (_name, data) in fonts_list {
+                let mut data = data.clone();
                 if cli.location == Some(lib::Location::System) {
                     match data.get_all_repos_with_update_system() {
                         Some(repos) => {
@@ -241,16 +244,19 @@ fn run() -> Result<()> {
             for font in cli.fonts.iter() {
                 match fonts_list.get(font) {
                     Some(data) => {
+                        let mut data = data.clone();
                         if cli.location == Some(lib::Location::System)
                             && data.is_update_available_system()
                         {
+                            let repo_with_update = &data.get_all_repos_with_update_system().unwrap()[0];
                             data.install_to_user(
-                                Some(&data.get_all_repos_with_update_system().unwrap()[0]),
+                                Some(repo_with_update),
                                 true,
                             )?;
                         } else if data.is_update_available_user() {
+                            let repo_with_update = &data.get_all_repos_with_update_user().unwrap()[0];
                             data.install_to_user(
-                                Some(&data.get_all_repos_with_update_user().unwrap()[0]),
+                                Some(repo_with_update),
                                 true,
                             )?;
                         }
@@ -262,7 +268,8 @@ fn run() -> Result<()> {
             }
         }
         "list" => {
-            for (name, data) in &fonts_list {
+            for (name, data) in fonts_list {
+                let mut data = data.clone();
                 if (cli.repo != None && data.is_font_in_repo(&cli.repo.as_ref().unwrap()))
                     || cli.repo == None
                 {
