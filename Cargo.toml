@@ -1,6 +1,6 @@
 [package]
 name = "font-catcher"
-version = "2.0.0"
+version = "2.1.0"
 edition = "2018"
 authors = ["Gustavo Peredo"]
 description = "A command-line utility and a high-level library for user and system font management"

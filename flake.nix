@@ -10,7 +10,7 @@
 	      toml = builtins.fromTOML tomlFile;
       in
         {
-          devShell = import ./shell.nix { inherit pkgs; };
+          # devShell = import ./shell.nix { inherit pkgs; };
           defaultPackage = (pkgs.makeRustPlatform {
             inherit (pkgs)
               rustc
