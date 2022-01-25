@@ -5,8 +5,10 @@ use std::path::PathBuf;
 use std::str;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use dirs::home_dir;
+
 #[cfg(unix)]
-use dirs::{font_dir, home_dir};
+use dirs::font_dir;
 
 //Windows workaround
 #[cfg(target_os = "windows")]
