@@ -18,9 +18,12 @@
             pname = toml.package.name;
             version = toml.package.version;
 
-            PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig:${pkgs.freetype.dev}/lib/pkgconfig:${pkgs.expat.dev}/lib/pkgconfig";
+            PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig:${pkgs.freetype.dev}/lib/pkgconfig:${pkgs.expat.dev}/lib/pkgconfig:${pkgs.curl.dev}/lib/pkgconfig";
+	    nativeBuildInputs = with pkgs; [
+	      pkg-config
+	    ];
+
             buildInputs = with pkgs; [
-              pkg-config
               freetype
               openssl
               cmake
