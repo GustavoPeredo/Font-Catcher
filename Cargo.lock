@@ -208,7 +208,7 @@ checksum = "7bad48618fdb549078c333a7a8528acb57af271d0433bdecd523eb620628364e"
 
 [[package]]
 name = "font-catcher"
-version = "2.1.0"
+version = "2.1.1"
 dependencies = [
  "chrono",
  "curl",

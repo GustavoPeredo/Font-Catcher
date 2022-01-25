@@ -35,7 +35,7 @@
             ];
 
             src = ./.;
-            cargoSha256 = "uduwgwkAlHkd75z2uYYyTx5/S3yqS5FYPvvAsLofsxk=";
+            cargoSha256 = "lJG+nj9i1bxjjN+/tQfsRZ2HYsFzmRheEJyEzrXiOZM=";
           };
           
     });
