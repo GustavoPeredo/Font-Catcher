@@ -10,7 +10,6 @@
 	      toml = builtins.fromTOML tomlFile;
       in
         {
-          # devShell = import ./shell.nix { inherit pkgs; };
           defaultPackage = (pkgs.makeRustPlatform {
             inherit (pkgs)
               rustc
@@ -20,7 +19,7 @@
             version = toml.package.version;
 
             PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig:${pkgs.freetype.dev}/lib/pkgconfig:${pkgs.expat.dev}/lib/pkgconfig";
-            nativeBuildInputs = with pkgs; [
+            buildInputs = with pkgs; [
               pkg-config
               freetype
               openssl
@@ -29,6 +28,7 @@
               gnumake
               expat
               fontconfig
+              curl
             ] ++ pkgs.lib.optionals stdenv.isDarwin [
               darwin.apple_sdk.frameworks.CoreText
               libiconv
